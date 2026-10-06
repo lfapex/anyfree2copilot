@@ -118,7 +118,7 @@ export class PlatformChatProvider implements vscode.LanguageModelChatProvider {
 				`model '${modelInfo.id}' is not available on '${this.sourceName}' — run "AnyFree: Refresh Model Catalog"`,
 			);
 		}
-		log.debugLog(this.sourceName, `chat request for ${group.key}`);
+		log.info(this.sourceName, `chat request for ${group.key} (upstream: ${group.candidates.map((c) => `${c.source.name}/${c.meta.id}`).join(', ')})`);
 		return runChatCompletion({
 			group,
 			messages,
