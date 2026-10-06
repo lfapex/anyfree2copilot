@@ -29,12 +29,14 @@ deprecated 一票否决、先验证后暴露）参考
 
 ## 每个平台一个分区
 
-每个平台在模型选择器里独立成区，顺序为 **Cline → OpenCode Zen → AtomCode**，
-找模型一目了然。分区内部，同一上游 ID 的装饰变体会合并为一个规范条目（Cline
-`cline-free/mimo-v2.6-flash` 与 `vendor/mimo-v2.6-flash:free`）；Cline 官方免费
-车队（"Try with limited usage at no cost"）固定排在分区最前，其余条目按规范 ID
-字母序稳定排列；请求先在平台内重试（AtomCode 会轮换网关地址），失败才报错。
-同一个模型出现在多个平台的分区里是有意为之——想用哪家的通道就选哪个。
+每个平台在模型选择器里独立成区，顺序为 **1. Cline (Free) → 2. OpenCode Zen
+(Free) → 3. AtomCode (Free)**，找模型一目了然。（选择器对分区按显示名字母序
+排列，因此名称带数字前缀来固定顺序。）分区内部，同一上游 ID 的装饰变体会合并
+为一个规范条目（Cline `cline-free/mimo-v2.6-flash` 与
+`vendor/mimo-v2.6-flash:free`）；Cline 官方免费车队（"Try with limited usage
+at no cost"）固定排在分区最前，其余条目按规范 ID 字母序稳定排列；请求先在平台内
+重试（AtomCode 会轮换网关地址），失败才报错。同一个模型出现在多个平台的分区里
+是有意为之——想用哪家的通道就选哪个。
 
 ## 只保留真正免费的模型
 

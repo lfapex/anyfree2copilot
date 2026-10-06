@@ -20,7 +20,9 @@ export interface Group {
 }
 
 /** Picker sections / vendor ids, matching the package.json contributions.
- *  Order = picker section order (Cline first, OpenCode second, AtomCode third). */
+ *  The picker sorts vendor sections alphabetically by displayName (core
+ *  workbench getVendors()), so the displayNames carry numeric prefixes
+ *  ("1. Cline (Free)" …) to pin the intended order: Cline, OpenCode, AtomCode. */
 export const PLATFORMS: Array<{ vendor: string; source: SourceName }> = [
 	{ vendor: 'cline', source: 'cline' },
 	{ vendor: 'opencode', source: 'opencode' },
