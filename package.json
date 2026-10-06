@@ -2,7 +2,7 @@
   "name": "opencodecline2copilot",
   "displayName": "OpenCode/Cline/AtomCode Free Models for Copilot",
   "description": "Use the free models behind OpenCode Zen, Cline and AtomCode (AtomGit CodingPlan) directly in Copilot Chat — agent mode, tool calling, MCP, all of it.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "lfapex",
   "license": "MIT",
   "repository": {

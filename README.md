@@ -27,7 +27,31 @@ The upstream acquisition logic (AtomCode request signing, Zen anonymous-lane
 shape, Cline identity headers, free-catalog discovery) follows the approach of
 the author's local gateway project *freegw*; the signing algorithm was
 independently documented by the MIT-licensed atomgit-opencode-bridge /
-Atom2Api projects.
+Atom2Api projects. The free-verdict discipline (metadata first, deprecated
+models never, verify-before-promote) follows
+[opencode2dsh](https://github.com/FishBottle7/opencode2dsh).
+
+## One entry per model, not per source
+
+The same model sold under different ids across sources — AtomCode
+`qwen3.8-27b`, Cline `qwen/qwen3.8-27b:free`, Zen `mimo-v2.6-flash-free` vs
+Cline `cline-free/mimo-v2.6-flash` — is advertised **once** under a canonical
+id. Each entry's candidate chain spans every source carrying the model, and a
+request fails over across the chain (rotating AtomCode's hosts first). The
+picker is sorted by canonical id for a stable order.
+
+## Keeping actually-free models only
+
+Metadata cannot always be trusted (models.dev marks `deepseek-v4-flash-free`
+cost 0, yet the anonymous lane answers `400 Model is unavailable` — it is free
+only for authenticated Zen accounts). Models that look free but fail a live
+probe of the anonymous lane are blocklisted:
+
+| Blocked id | Reason (probed 2026-10-06) |
+| --- | --- |
+| `deepseek-v4-flash-free` | HTTP 400 "Model is unavailable" on the anonymous lane |
+| `jev-1.13-free` | HTTP 500 — rides the SystemOne endpoint, not chat completions |
+| `muse-spark-*` | Responses-API-only lane |
 
 ## Getting started
 
@@ -81,6 +105,9 @@ All under `opencodecline.*`:
 
 - Free lanes are **limited-time offers** of the respective services and can
   change or disappear at any moment; models are rate-limited by the upstreams.
+- The picker reflects each source's **live catalog** once it answers; the
+  built-in static roster is only a cold-start/failure fallback, so delisted
+  models disappear instead of lingering.
 - AtomCode/Cline request the **credentials of your own logged-in CLI/desktop
   session**; tokens are read from disk per request, minted refresh tokens live
   in memory only, and the CLI/desktop apps keep owning their auth files.

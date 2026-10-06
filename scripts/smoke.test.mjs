@@ -15,6 +15,7 @@ const require = createRequire(import.meta.url);
 const atomcode = require('../out/sources/atomcode.js');
 const opencode = require('../out/sources/opencode.js');
 const cline = require('../out/sources/cline.js');
+const { canonicalModelKey, Catalog } = require('../out/sources/index.js');
 const { SseParser, isDoneEvent } = require('../out/sse.js');
 
 test('atomcode-signing-v1: golden vector (live-verified scheme, pinned)', () => {
@@ -198,4 +199,60 @@ test('SSE parser: comments, CRLF, multi-line data and [DONE]', () => {
 	assert.equal(events.length, 1);
 	assert.ok(isDoneEvent(events[0].data));
 	assert.ok(!isDoneEvent('{"x":1}'));
+});
+
+test('canonicalModelKey: same model across sources groups into one key', () => {
+	assert.equal(canonicalModelKey('qwen/qwen3.8-27b:free'), 'qwen3.8-27b');
+	assert.equal(canonicalModelKey('cline-free/mimo-v2.6-flash'), 'mimo-v2.6-flash');
+	assert.equal(canonicalModelKey('mimo-v2.6-flash-free'), 'mimo-v2.6-flash');
+	assert.equal(canonicalModelKey('nvidia/nemotron-3.5-lightning:free'), 'nemotron-3.5-lightning');
+	assert.equal(canonicalModelKey('qwen3.8-27b'), 'qwen3.8-27b');
+	// Conservative: no `:free` suffix → the org prefix stays (distinct model).
+	assert.equal(canonicalModelKey('stealth/space-bunny-alpha'), 'stealth/space-bunny-alpha');
+	// Variant suffixes stay distinct.
+	assert.equal(canonicalModelKey('ling-3.0-flash-fin-free'), 'ling-3.0-flash-fin');
+});
+
+test('freeVerdict: probed-unusable ids are excluded even when metadata says free', () => {
+	// Live probed 2026-10-06: HTTP 400 "Model is unavailable" on the anonymous lane.
+	assert.equal(opencode.freeVerdict('deepseek-v4-flash-free', { cost: { input: 0, output: 0 } }), false);
+	// Live probed 2026-10-06: HTTP 500 (SystemOne endpoint, no chat-completions lane).
+	assert.equal(opencode.freeVerdict('jev-1.13-free', undefined), false);
+	// Verified roster passes regardless of metadata.
+	assert.equal(opencode.freeVerdict('big-pickle', undefined), true);
+	// Deprecation beats even the verified roster.
+	assert.equal(opencode.freeVerdict('big-pickle', { deprecated: true }), false);
+	// Name fallback for unknown -free ids; paid models excluded.
+	assert.equal(opencode.freeVerdict('some-future-model-free', undefined), true);
+	assert.equal(opencode.freeVerdict('paid-model', { cost: { input: 1, output: 2 } }), false);
+});
+
+test('catalog: canonical groups, failover candidates and stable sort', () => {
+	const settings = {
+		debug: false,
+		atomcode: { enabled: true, home: '', hosts: [], clientVersion: '', models: [], allowRefresh: false },
+		opencode: { enabled: true, baseUrl: 'https://opencode.ai/zen', refreshSeconds: 300 },
+		cline: { enabled: true, baseUrl: '', home: '', clientType: '', clientVersion: '', allowRefresh: false, includeClinePass: false },
+	};
+	const catalog = new Catalog(settings);
+	const groups = catalog.current();
+	const keys = groups.map((g) => g.key);
+	assert.deepEqual(keys, [...keys].sort((a, b) => a.localeCompare(b)), 'groups must be sorted by canonical key');
+
+	// mimo-v2.6-flash: opencode static + cline static group into one entry.
+	const mimo = catalog.resolve('mimo-v2.6-flash');
+	assert.ok(mimo);
+	assert.equal(mimo.candidates.length, 2);
+	assert.deepEqual(mimo.candidates.map((c) => c.meta.source), ['opencode', 'cline']);
+	// qwen3.8-27b: atomcode + cline group into one entry.
+	const qwen = catalog.resolve('qwen3.8-27b');
+	assert.ok(qwen);
+	assert.equal(qwen.candidates.length, 2);
+	assert.deepEqual(qwen.candidates.map((c) => c.meta.source), ['cline', 'atomcode']);
+	// Legacy "source/id" ids from an old session resolve to their group.
+	assert.ok(catalog.resolve('opencode/mimo-v2.6-flash-free'));
+	assert.ok(catalog.resolve('cline/cline-free/mimo-v2.6-flash'));
+	assert.equal(catalog.resolve('does-not-exist'), undefined);
+	// Merged capabilities: intersection, not union.
+	assert.equal(mimo.meta.imageInput, undefined, 'cline candidate has no imageInput — intersection must drop it');
 });

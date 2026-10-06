@@ -3,14 +3,14 @@ import vscode from 'vscode';
 import { runChatCompletion } from './stream';
 import { log } from './log';
 import { getSettings, type Settings } from './settings';
-import { Catalog, statusLines } from './sources';
-import type { ModelMeta } from './types';
-import { pickerId } from './types';
+import { Catalog, statusLines, type Group } from './sources';
 
 /**
  * Free-models chat provider — implements vscode.LanguageModelChatProvider so
  * the free lanes behind OpenCode Zen, Cline and AtomCode appear directly in
- * the Copilot Chat model picker.
+ * the Copilot Chat model picker. The same model sold under different ids
+ * across sources is advertised once, as a canonical group whose candidates
+ * fail over across the sources carrying it.
  */
 
 type PickerInfo = vscode.LanguageModelChatInformation & {
@@ -22,21 +22,22 @@ type PickerInfo = vscode.LanguageModelChatInformation & {
 const DEFAULT_CONTEXT = 131_072;
 const DEFAULT_MAX_OUTPUT = 32_768;
 
-function toChatInfo(meta: ModelMeta): PickerInfo {
+function toChatInfo(group: Group): PickerInfo {
+	const sourceNames = [...new Set(group.candidates.map((c) => c.source.name))].join(' + ');
 	return {
-		id: pickerId(meta),
-		name: meta.name ?? meta.id,
-		family: meta.source,
+		id: group.key,
+		name: group.meta.name ?? group.key,
+		family: group.meta.source,
 		version: '1.0.0',
-		detail: `free · via ${meta.source}`,
-		tooltip: `${pickerId(meta)} — free lane via ${meta.source}`,
-		maxInputTokens: meta.contextWindow ?? DEFAULT_CONTEXT,
-		maxOutputTokens: meta.maxOutput ?? DEFAULT_MAX_OUTPUT,
+		detail: `free · via ${sourceNames}`,
+		tooltip: `${group.key} — free lanes: ${group.candidates.map((c) => `${c.source.name}/${c.meta.id}`).join(', ')}`,
+		maxInputTokens: group.meta.contextWindow ?? DEFAULT_CONTEXT,
+		maxOutputTokens: group.meta.maxOutput ?? DEFAULT_MAX_OUTPUT,
 		isBYOK: true,
 		isUserSelectable: true,
 		capabilities: {
-			toolCalling: meta.supportsTools !== false,
-			imageInput: meta.imageInput === true,
+			toolCalling: group.meta.supportsTools !== false,
+			imageInput: group.meta.imageInput === true,
 		},
 	};
 }
@@ -137,16 +138,15 @@ export class FreeModelsChatProvider implements vscode.LanguageModelChatProvider 
 		progress: vscode.Progress<vscode.LanguageModelResponsePart>,
 		token: vscode.CancellationToken,
 	): Promise<void> {
-		const resolved = this.catalog.resolve(modelInfo.id);
-		if (!resolved) {
+		const group = this.catalog.resolve(modelInfo.id);
+		if (!group) {
 			throw new Error(
 				`model '${modelInfo.id}' is not exposed by any enabled source — run "Free Models: Refresh Model Catalog"`,
 			);
 		}
-		log.debugLog('provider', `chat request for ${modelInfo.id} via ${resolved.source.name}`);
+		log.debugLog('provider', `chat request for ${group.key} via ${group.candidates.map((c) => c.source.name).join('+')}`);
 		return runChatCompletion({
-			source: resolved.source,
-			meta: resolved.meta,
+			group,
 			messages,
 			options,
 			progress,

@@ -3,22 +3,22 @@ import vscode from 'vscode';
 import { convertToChatRequest } from './convert';
 import { log } from './log';
 import { isDoneEvent, SseParser } from './sse';
-import type { Catalog } from './sources';
+import type { Group } from './sources';
 import type {
 	ChatStreamChunk,
 	ChatUsage,
-	ModelMeta,
-	Source,
 } from './types';
 
 /**
- * Run one chat completion: prepare the upstream request, stream the SSE
- * response and forward content, thinking and tool calls to Copilot.
- * Retries retryable upstream failures (rotating AtomCode hosts) up to three
- * attempts before surfacing the last error.
+ * Run one chat completion over a canonical group's candidate chain: prepare
+ * the upstream request per candidate, stream the SSE response and forward
+ * content, thinking and tool calls to Copilot. Retryable failures rotate an
+ * AtomCode host (per-candidate sub-attempts) and then fail over to the next
+ * source carrying the same model; a total budget caps the attempts.
  */
 
-const MAX_ATTEMPTS = 3;
+const BUDGET = 6;
+const TRIES_PER_CANDIDATE = 2;
 const COPILOT_USAGE_DATA_PART_MIME = 'usage';
 const ERROR_BODY_SNIPPET = 500;
 
@@ -29,8 +29,7 @@ interface PendingToolCall {
 }
 
 export interface RunChatCompletionOptions {
-	source: Source;
-	meta: ModelMeta;
+	group: Group;
 	messages: readonly vscode.LanguageModelChatRequestMessage[];
 	options: vscode.ProvideLanguageModelChatResponseOptions;
 	progress: vscode.Progress<vscode.LanguageModelResponsePart>;
@@ -38,76 +37,82 @@ export interface RunChatCompletionOptions {
 }
 
 export async function runChatCompletion({
-	source,
-	meta,
+	group,
 	messages,
 	options,
 	progress,
 	token,
 }: RunChatCompletionOptions): Promise<void> {
-	const body = convertToChatRequest(meta.id, messages, options, meta);
-	let lastMessage = 'no attempt was made';
+	let lastMessage = 'no candidate answered';
+	let used = 0;
 
-	for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-		let prepared;
-		try {
-			prepared = await source.prepare(meta.id, body, attempt);
-		} catch (err) {
-			lastMessage = (err as Error).message;
-			log.warn(source.name, `prepare failed for ${meta.id}: ${lastMessage}`);
-			// Auth absence is terminal for this source — no point retrying.
-			if (attempt + 1 >= MAX_ATTEMPTS || /not logged in|auth\.toml|providers\.json/.test(lastMessage)) {
-				throw new Error(lastMessage);
+	for (const { source, meta } of group.candidates) {
+		for (let sub = 0; sub < TRIES_PER_CANDIDATE; sub += 1) {
+			if (used >= BUDGET) {
+				break;
 			}
-			continue;
-		}
+			used += 1;
 
-		const controller = new AbortController();
-		const cancelListener = token.onCancellationRequested(() => controller.abort());
-		if (token.isCancellationRequested) {
-			controller.abort();
-		}
+			let prepared;
+			try {
+				const body = convertToChatRequest(meta.id, messages, options, meta);
+				prepared = await source.prepare(meta.id, body, sub);
+			} catch (err) {
+				lastMessage = (err as Error).message;
+				log.warn(source.name, `prepare failed for ${meta.id}: ${lastMessage}`);
+				break; // auth/catalog problems will not heal within this request — next candidate
+			}
 
-		try {
-			const res = await fetch(prepared.url, {
-				method: 'POST',
-				headers: prepared.headers,
-				body: prepared.body,
-				signal: controller.signal,
-			});
-			if (!res.ok) {
-				const message = await consumeErrorBody(res);
-				source.onUpstreamFailure?.(res.status);
-				log.warn(source.name, `upstream ${res.status} via ${prepared.via} for ${meta.id}: ${message.slice(0, 160)}`);
-				lastMessage = message;
-				if (source.isRetryable(res.status) && attempt + 1 < MAX_ATTEMPTS) {
-					await sleep(150);
-					continue;
-				}
-				throw new Error(`upstream (${prepared.via}) ${message}`);
-			}
-			if (!res.body) {
-				throw new Error(`upstream (${prepared.via}) response has no body`);
-			}
-			await streamResponse(res.body, prepared.stripGateTools === true, progress, token);
-			return;
-		} catch (err) {
+			const controller = new AbortController();
+			const cancelListener = token.onCancellationRequested(() => controller.abort());
 			if (token.isCancellationRequested) {
+				cancelListener.dispose();
 				return;
 			}
-			lastMessage = (err as Error).message;
-			log.warn(source.name, `attempt ${attempt + 1}/${MAX_ATTEMPTS} via ${prepared.via} failed: ${lastMessage}`);
-			if (attempt + 1 < MAX_ATTEMPTS) {
-				await sleep(150);
-				continue;
+
+			try {
+				const res = await fetch(prepared.url, {
+					method: 'POST',
+					headers: prepared.headers,
+					body: prepared.body,
+					signal: controller.signal,
+				});
+				if (!res.ok) {
+					const message = await consumeErrorBody(res);
+					source.onUpstreamFailure?.(res.status);
+					log.warn(source.name, `upstream ${res.status} via ${prepared.via} for ${meta.id}: ${message.slice(0, 160)}`);
+					lastMessage = message;
+					if (source.isRetryable(res.status) && sub + 1 < TRIES_PER_CANDIDATE && used < BUDGET) {
+						continue; // same source, next sub-attempt (AtomCode host rotation)
+					}
+					break; // next candidate
+				}
+				if (!res.body) {
+					lastMessage = `upstream (${prepared.via}) response has no body`;
+					break;
+				}
+				await streamResponse(res.body, prepared.stripGateTools === true, progress, token);
+				return;
+			} catch (err) {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				lastMessage = (err as Error).message;
+				log.warn(source.name, `attempt ${used}/${BUDGET} via ${prepared.via} failed: ${lastMessage}`);
+				if (used >= BUDGET) {
+					break;
+				}
+				// fall through to the next sub-attempt / candidate
+			} finally {
+				cancelListener.dispose();
 			}
-			throw new Error(`all attempts failed for '${meta.id}': ${lastMessage}`);
-		} finally {
-			cancelListener.dispose();
+		}
+		if (used >= BUDGET) {
+			break;
 		}
 	}
 
-	throw new Error(`all attempts failed for '${meta.id}': ${lastMessage}`);
+	throw new Error(`all upstreams failed for '${group.key}': ${lastMessage}`);
 }
 
 async function streamResponse(
@@ -249,8 +254,4 @@ function consumeErrorBody(res: Response): Promise<string> {
 			}
 			return `${res.status}: ${text.slice(0, ERROR_BODY_SNIPPET)}`;
 		});
-}
-
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
 }

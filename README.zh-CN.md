@@ -22,7 +22,29 @@ Copilot Chat 自身使用的 provider API。零运行时依赖——纯 VS Code 
 
 上游获取逻辑（AtomCode 请求签名、Zen 匿名通道请求形状、Cline 身份头、免费目录发现）
 沿用作者的本地网关项目 *freegw* 的方案；签名算法由 MIT 协议的
-atomgit-opencode-bridge / Atom2Api 项目独立公开。
+atomgit-opencode-bridge / Atom2Api 项目独立公开。免费判定纪律（元数据优先、
+deprecated 一票否决、先验证后暴露）参考
+[opencode2dsh](https://github.com/FishBottle7/opencode2dsh)。
+
+## 同一模型只出现一次
+
+同一模型在不同来源下的不同 ID——AtomCode `qwen3.8-27b`、Cline
+`qwen/qwen3.8-27b:free`、Zen `mimo-v2.6-flash-free` 与 Cline
+`cline-free/mimo-v2.6-flash`——会合并为**一个**规范 ID 展示。每个条目的候选链
+覆盖所有携带该模型的来源，请求沿链自动故障切换（先轮换 AtomCode 的网关地址）。
+选择器按规范 ID 字母序稳定排列。
+
+## 只保留真正免费的模型
+
+元数据不可全信（models.dev 给 `deepseek-v4-flash-free` 标价 0，但匿名通道实测
+返回 `400 Model is unavailable`——它只对认证的 Zen 账号免费）。形似免费但匿名
+通道实测不可用的模型会被拉黑：
+
+| 拉黑 ID | 原因（2026-10-06 实测） |
+| --- | --- |
+| `deepseek-v4-flash-free` | 匿名通道 HTTP 400 "Model is unavailable" |
+| `jev-1.13-free` | HTTP 500 —— 走 SystemOne 专用端点，非 chat completions |
+| `muse-spark-*` | 仅 Responses API 通道 |
 
 ## 快速开始
 
@@ -73,6 +95,8 @@ atomgit-opencode-bridge / Atom2Api 项目独立公开。
 ## 注意与限制
 
 - 免费通道是各服务的**限时政策**，随时可能调整或下线；上游本身有限流。
+- 目录以各来源的**在线名单**为准；内置静态名单只用于冷启动/故障兜底，
+  上游下架的模型会随之消失，不会一直残留。
 - AtomCode/Cline 使用**你自己已登录的 CLI/桌面端凭证**；每次请求时从磁盘读取，
   换发的令牌只存内存，CLI/桌面应用始终拥有自己的鉴权文件。
 - OpenCode 匿名通道按客户端身份限流，重度使用可能触发冷却。

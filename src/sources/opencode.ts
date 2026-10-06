@@ -30,6 +30,17 @@ const FREE_LANE_GATE_TOOLS = ['bash', 'read'] as const;
 const MODELS_DEV_URL = 'https://models.dev/api.json';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Ids that look free but do NOT work on the anonymous chat-completions lane
+ * (probed 2026-10-06 with the exact lane request shape):
+ *  - deepseek-v4-flash-free: HTTP 400 "Model is unavailable" — free only for
+ *    authenticated Zen accounts, models.dev still marks it cost 0.
+ *  - jev-1.13-free: HTTP 500 — rides the SystemOne endpoint, not chat
+ *    completions (no models.dev entry either).
+ * muse-spark-* (Responses-API-only) is filtered separately below.
+ */
+const UNUSABLE_IDS = new Set(['deepseek-v4-flash-free', 'jev-1.13-free']);
+
 /** Verified against the anonymous lane with real chats (2026-10). */
 const STATIC_FREE_MODELS: ModelMeta[] = [
 	{ id: 'big-pickle', source: 'opencode', name: 'Big Pickle', reasoning: true, supportsTools: true },
@@ -170,8 +181,9 @@ async function fetchModelsDev(): Promise<Record<string, ModelsDevEntry>> {
 /** Zen ids verified by real anonymous chats (metadata-independent free verdict). */
 const STATIC_VERIFIED_IDS = new Set(STATIC_FREE_MODELS.map((m) => m.id));
 
-function freeVerdict(id: string, entry: ModelsDevEntry | undefined): boolean {
-	if (entry?.deprecated) {
+/** Free verdict for the ANONYMOUS lane. Exported for the smoke tests. */
+export function freeVerdict(id: string, entry: ModelsDevEntry | undefined): boolean {
+	if (UNUSABLE_IDS.has(id) || entry?.deprecated) {
 		return false;
 	}
 	if (STATIC_VERIFIED_IDS.has(id)) {
@@ -238,6 +250,7 @@ export class OpenCodeSource implements Source {
 				}
 				models.push(toMeta(id, entry));
 			}
+			log.debugLog(this.name, `excluded as unusable on the anonymous lane: ${liveList.filter((id) => UNUSABLE_IDS.has(id)).join(', ') || 'none'}`);
 			if (models.length === 0) {
 				throw new Error('live list empty after free filter');
 			}
