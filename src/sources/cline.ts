@@ -46,12 +46,13 @@ interface BucketRow {
 	name?: string;
 }
 
-/** Verified free roster (free bucket ∪ /models `:free`, 2026-10-04). */
+/** Verified free roster (free bucket ∪ /models `:free`, 2026-10-04).
+ *  `promo` marks Cline's own free fleet ("Try with limited usage at no cost"). */
 export const STATIC_FREE_MODELS: ModelMeta[] = [
-	{ id: 'cline-free/deepseek-v4.1-flash', source: 'cline', name: 'DeepSeek V4.1 Flash (Cline)', supportsTools: true },
-	{ id: 'stealth/space-bunny-alpha', source: 'cline', name: 'Space Bunny Alpha (Cline)', supportsTools: true },
-	{ id: 'cline-free/mimo-v2.6-flash', source: 'cline', name: 'MiMo V2.6 Flash (Cline)', supportsTools: true },
-	{ id: 'cline-free/muse-spark-1.3-contributor', source: 'cline', name: 'Muse Spark 1.3 Contributor (Cline)', supportsTools: true },
+	{ id: 'cline-free/deepseek-v4.1-flash', source: 'cline', name: 'DeepSeek V4.1 Flash (Cline)', supportsTools: true, promo: true },
+	{ id: 'stealth/space-bunny-alpha', source: 'cline', name: 'Space Bunny Alpha (Cline)', supportsTools: true, promo: true },
+	{ id: 'cline-free/mimo-v2.6-flash', source: 'cline', name: 'MiMo V2.6 Flash (Cline)', supportsTools: true, promo: true },
+	{ id: 'cline-free/muse-spark-1.3-contributor', source: 'cline', name: 'Muse Spark 1.3 Contributor (Cline)', supportsTools: true, promo: true },
 	{ id: 'apodex/apodex-1.1-mini:free', source: 'cline', supportsTools: true },
 	{ id: 'inclusionai/ling-3.0-flash-sante:free', source: 'cline', supportsTools: true },
 	{ id: 'qwen/qwen3.8-27b:free', source: 'cline', supportsTools: true },
@@ -313,7 +314,7 @@ export class ClineSource implements Source {
 		const out: ModelMeta[] = [];
 		for (const row of body.free ?? []) {
 			if (typeof row.id === 'string' && row.id) {
-				out.push({ id: row.id, source: 'cline', ...(row.name ? { name: `${row.name} (Cline)` } : {}), supportsTools: true });
+				out.push({ id: row.id, source: 'cline', ...(row.name ? { name: `${row.name} (Cline)` } : {}), supportsTools: true, promo: true });
 			}
 		}
 		if (this.#cfg.includeClinePass) {

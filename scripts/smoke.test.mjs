@@ -15,7 +15,7 @@ const require = createRequire(import.meta.url);
 const atomcode = require('../out/sources/atomcode.js');
 const opencode = require('../out/sources/opencode.js');
 const cline = require('../out/sources/cline.js');
-const { canonicalModelKey, Catalog } = require('../out/sources/index.js');
+const { canonicalModelKey, Catalog, PLATFORMS } = require('../out/sources/index.js');
 const { SseParser, isDoneEvent } = require('../out/sse.js');
 
 test('atomcode-signing-v1: golden vector (live-verified scheme, pinned)', () => {
@@ -236,11 +236,21 @@ test('catalog: per-platform sections, canonical dedup and stable sort', () => {
 	};
 	const catalog = new Catalog(settings);
 
-	// Each platform is its own section, sorted by canonical key.
-	for (const source of ['opencode', 'cline', 'atomcode']) {
+	// opencode / atomcode sections are sorted by canonical key.
+	for (const source of ['opencode', 'atomcode']) {
 		const keys = catalog.currentFor(source).map((g) => g.key);
 		assert.deepEqual(keys, [...keys].sort((a, b) => a.localeCompare(b)), `${source} must be sorted by canonical key`);
 	}
+
+	// Cline section: the promo free fleet ("Try with limited usage at no
+	// cost") is pinned to the top, the rest sorts by canonical key.
+	const clineKeys = catalog.currentFor('cline').map((g) => g.key);
+	assert.equal(clineKeys[0], 'mimo-v2.6-flash', 'the promo fleet entry must be first');
+	const clineRest = clineKeys.slice(1); // static roster carries exactly one promo entry
+	assert.deepEqual(clineRest, [...clineRest].sort((a, b) => a.localeCompare(b)), 'non-promo cline entries must be sorted');
+
+	// Platform section order: Cline, OpenCode, AtomCode.
+	assert.deepEqual(PLATFORMS.map((p) => p.source), ['cline', 'opencode', 'atomcode']);
 
 	// Within a platform, decorated variants dedup into one canonical entry.
 	const clineMimo = catalog.resolveFor('cline', 'mimo-v2.6-flash');

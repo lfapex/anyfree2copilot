@@ -19,10 +19,11 @@ export interface Group {
 	meta: ModelMeta;
 }
 
-/** Picker sections / vendor ids, matching the package.json contributions. */
+/** Picker sections / vendor ids, matching the package.json contributions.
+ *  Order = picker section order (Cline first, OpenCode second, AtomCode third). */
 export const PLATFORMS: Array<{ vendor: string; source: SourceName }> = [
-	{ vendor: 'opencode', source: 'opencode' },
 	{ vendor: 'cline', source: 'cline' },
+	{ vendor: 'opencode', source: 'opencode' },
 	{ vendor: 'atomcode', source: 'atomcode' },
 ];
 
@@ -66,7 +67,7 @@ const STATIC_FALLBACK: Record<SourceName, ModelMeta[]> = {
 		{ id: 'ling-3.1-flash-free', source: 'opencode', name: 'Ling 3.1 Flash Free', contextWindow: 262_144, maxOutput: 32_768, supportsTools: true, reasoning: true },
 	],
 	cline: [
-		{ id: 'cline-free/mimo-v2.6-flash', source: 'cline', name: 'MiMo V2.6 Flash (Cline)', supportsTools: true },
+		{ id: 'cline-free/mimo-v2.6-flash', source: 'cline', name: 'MiMo V2.6 Flash (Cline)', supportsTools: true, promo: true },
 		{ id: 'qwen/qwen3.8-27b:free', source: 'cline', name: 'Qwen3.8-27B Free (Cline)', supportsTools: true },
 	],
 };
@@ -93,6 +94,7 @@ function mergeGroupMeta(key: string, metas: ModelMeta[]): ModelMeta {
 		supportsTools: metas.every((m) => m.supportsTools !== false),
 		imageInput: metas.length > 0 && metas.every((m) => m.imageInput === true) ? true : undefined,
 		reasoning: metas.some((m) => m.reasoning === true) || undefined,
+		promo: metas.length > 0 && metas.every((m) => m.promo === true) ? true : undefined,
 	};
 }
 
@@ -168,9 +170,19 @@ export class Catalog {
 		this.#rebuild(this.#staticPerSource());
 	}
 
-	/** One platform's groups, sorted by canonical key for a stable picker order. */
+	/** One platform's groups for the picker: the provider's own promo free
+	 *  fleet first (Cline's "Try with limited usage at no cost" models, kept in
+	 *  the provider's recommendation order), then the rest by canonical key. */
 	currentFor(source: SourceName): Group[] {
-		return [...(this.#bySource.get(source)?.values() ?? [])].sort((a, b) => a.key.localeCompare(b.key));
+		const values = [...(this.#bySource.get(source)?.values() ?? [])];
+		const promo = values.filter((g) => g.meta.promo === true);
+		if (promo.length === 0) {
+			return values.sort((a, b) => a.key.localeCompare(b.key));
+		}
+		const rest = values
+			.filter((g) => g.meta.promo !== true)
+			.sort((a, b) => a.key.localeCompare(b.key));
+		return [...promo, ...rest];
 	}
 
 	/** Total number of advertised entries across all platforms. */

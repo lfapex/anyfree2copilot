@@ -99,6 +99,9 @@ export interface ModelMeta {
 	supportsTools?: boolean;
 	imageInput?: boolean;
 	reasoning?: boolean;
+	/** Provider's own promo free fleet ("Try with limited usage at no cost") —
+	 *  pinned to the top of its platform section in the picker. */
+	promo?: boolean;
 }
 
 /** Picker-wide unique id: `<source>/<upstream-id>`. */
