@@ -104,6 +104,17 @@ All under `anyfree.*`:
 
 ## Notes & limitations
 
+- **The Agents window (Copilot CLI agent sessions) can reject these models with
+  `modelSelectionFailed` / "Provider model … is not registered".** That is a
+  VS Code bug, not the extension's: chats auto-restored during window startup
+  are created before the BYOK model list reaches the Agent Host, so the
+  restored session only knows "Auto" and rejects every later model switch
+  ([microsoft/vscode#337742](https://github.com/microsoft/vscode/issues/337742)).
+  Workaround: start a **new** agent chat after the window has finished loading
+  and pick the model there — or use the regular Copilot Chat panel, where the
+  platform sections work normally. Every BYOK provider extension is affected
+  (see also
+  [deepseek-v4-for-copilot#284](https://github.com/Vizards/deepseek-v4-for-copilot/issues/284)).
 - Free lanes are **limited-time offers** of the respective services and can
   change or disappear at any moment; models are rate-limited by the upstreams.
 - The picker reflects each source's **live catalog** once it answers; the

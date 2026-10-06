@@ -96,6 +96,15 @@ deprecated 一票否决、先验证后暴露）参考
 
 ## 注意与限制
 
+- **Agents 窗口（Copilot CLI agent 会话）可能拒绝这些模型**，报
+  `modelSelectionFailed` / "Provider model … is not registered"。这是 VS Code
+  的 bug 而非本扩展的问题：窗口启动时自动恢复的会话在 BYOK 模型列表送达
+  Agent Host 之前就已创建，该会话只认识 "Auto"，之后任何模型切换都会被拒
+  （[microsoft/vscode#337742](https://github.com/microsoft/vscode/issues/337742)）。
+  绕过办法：窗口加载完成后**新建**一个 agent 会话再选模型；或直接用普通
+  Copilot Chat 面板，三个平台分区在那里可正常使用。所有 BYOK 模型插件都受
+  此影响（另见
+  [deepseek-v4-for-copilot#284](https://github.com/Vizards/deepseek-v4-for-copilot/issues/284)）。
 - 免费通道是各服务的**限时政策**，随时可能调整或下线；上游本身有限流。
 - 目录以各来源的**在线名单**为准；内置静态名单只用于冷启动/故障兜底，
   上游下架的模型会随之消失，不会一直残留。
