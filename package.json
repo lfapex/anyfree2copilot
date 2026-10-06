@@ -1,0 +1,170 @@
+{
+  "name": "opencodecline2copilot",
+  "displayName": "OpenCode/Cline/AtomCode Free Models for Copilot",
+  "description": "Use the free models behind OpenCode Zen, Cline and AtomCode (AtomGit CodingPlan) directly in Copilot Chat — agent mode, tool calling, MCP, all of it.",
+  "version": "0.1.0",
+  "publisher": "lfapex",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lfapex/opencodecline2copilot"
+  },
+  "engines": {
+    "vscode": "^1.116.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "copilot",
+    "github copilot",
+    "copilot chat",
+    "opencode",
+    "cline",
+    "atomcode",
+    "free models",
+    "byok",
+    "language model",
+    "ai",
+    "chat"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "enabledApiProposals": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "opencodecline",
+        "displayName": "OpenCode · Cline · AtomCode"
+      }
+    ],
+    "commands": [
+      {
+        "command": "opencodecline.showStatus",
+        "title": "Free Models: Show Source Status"
+      },
+      {
+        "command": "opencodecline.refreshModels",
+        "title": "Free Models: Refresh Model Catalog"
+      },
+      {
+        "command": "opencodecline.showLogs",
+        "title": "Free Models: Show Logs"
+      }
+    ],
+    "configuration": {
+      "title": "OpenCode/Cline/AtomCode Free Models",
+      "properties": {
+        "opencodecline.sources.atomcode.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Expose AtomCode (AtomGit CodingPlan) free models. Requires the AtomCode CLI to be logged in (`atomcode login`)."
+        },
+        "opencodecline.sources.opencode.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Expose OpenCode Zen anonymous free-lane models. No account needed."
+        },
+        "opencodecline.sources.cline.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Expose Cline free models. Requires a signed-in Cline desktop app."
+        },
+        "opencodecline.atomcode.home": {
+          "type": "string",
+          "default": "",
+          "description": "AtomCode home directory. Empty = ~/.atomcode (honours the ATOMCODE_HOME environment variable)."
+        },
+        "opencodecline.atomcode.hosts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "https://llm-api.atomgit.com/v1",
+            "https://api-ai.gitcode.com/v1"
+          ],
+          "description": "AtomGit LLM gateway hosts, tried in order across failover attempts."
+        },
+        "opencodecline.atomcode.clientVersion": {
+          "type": "string",
+          "default": "",
+          "description": "Value sent as X-AtomCode-Ver. Empty = the version the signing scheme was verified against (5.2.1)."
+        },
+        "opencodecline.atomcode.allowRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow minting a fresh access token via acs.atomgit.com/oauth/refresh when auth.toml's token is stale."
+        },
+        "opencodecline.atomcode.models": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "AtomCode model id allowlist. Empty = every AtomGit model discovered in the CLI's config.toml (fallback: the built-in verified roster)."
+        },
+        "opencodecline.opencode.baseUrl": {
+          "type": "string",
+          "default": "https://opencode.ai/zen",
+          "description": "OpenCode Zen base URL."
+        },
+        "opencodecline.opencode.refreshSeconds": {
+          "type": "number",
+          "default": 300,
+          "minimum": 30,
+          "description": "How often the OpenCode Zen free-model catalog is refreshed, in seconds."
+        },
+        "opencodecline.cline.home": {
+          "type": "string",
+          "default": "",
+          "description": "Cline desktop home directory. Empty = ~/.cline (honours the CLINE_HOME environment variable)."
+        },
+        "opencodecline.cline.baseUrl": {
+          "type": "string",
+          "default": "https://api.cline.bot/api/v1",
+          "description": "Cline API base URL."
+        },
+        "opencodecline.cline.clientType": {
+          "type": "string",
+          "default": "",
+          "description": "Value sent as X-CLIENT-TYPE / X-PLATFORM. Empty = cline-sdk."
+        },
+        "opencodecline.cline.clientVersion": {
+          "type": "string",
+          "default": "",
+          "description": "Value sent as X-CLIENT-VERSION / X-PLATFORM-VERSION. Empty = 4.1.22."
+        },
+        "opencodecline.cline.allowRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow minting a fresh access token via the Cline refresh endpoint when providers.json's token is stale (does not kick the desktop session)."
+        },
+        "opencodecline.cline.includeClinePass": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also expose the subscription-gated `clinePass` model bucket (403s without an active subscription)."
+        },
+        "opencodecline.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Verbose logging to the 'Free Models for Copilot' output channel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
+    "compile": "npm run clean && tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "smoke": "node --test scripts/smoke.test.mjs",
+    "package": "vsce package -o dist/"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.116.0",
+    "@vscode/vsce": "^3.9.1",
+    "typescript": "^5.9.2"
+  }
+}

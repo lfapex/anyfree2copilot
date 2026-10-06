@@ -1,0 +1,86 @@
+# opencodecline2copilot
+
+**把 OpenCode、Cline、AtomCode 背后的免费模型直接搬进 GitHub Copilot Chat。**
+
+这是一个 VS Code 扩展——不需要再单独跑一个本地网关进程。它注册的是一个
+BYOK 语言模型 provider，三家的免费通道会作为普通模型出现在 Copilot Chat
+的模型选择器里，agent 模式、工具调用、MCP 等 Copilot 全部能力照常可用。
+
+| 来源 | 免费模型 | 鉴权 | 通道 |
+| --- | --- | --- | --- |
+| **AtomCode**（AtomGit CodingPlan） | `qwen3.8-27b`、`glm5.3-flash` 等，自动从 CLI 的 `config.toml` 发现 | 你自己已登录的 AtomCode CLI（`atomcode login` → `~/.atomcode/auth.toml`），请求带 `atomcode-signing-v1` 签名 | `llm-api.atomgit.com/v1`（故障切换：`api-ai.gitcode.com/v1`） |
+| **OpenCode Zen** 匿名通道 | `big-pickle`、`mimo-v2.6-flash-free`、`ling-3.1-flash-free`、`nemotron-3.5-lightning-free` 等（在线发现） | 无需账号，伪装成 OpenCode CLI 的匿名通道 | `opencode.ai/zen/v1` |
+| **Cline**（桌面端账号） | `cline-free/deepseek-v4.1-flash`、`cline-free/mimo-v2.6-flash`、`qwen/qwen3.8-27b:free`、`nvidia/nemotron-3.5-lightning:free` 等（20+ 在线发现） | 你自己已登录的 Cline 桌面端（`~/.cline/data/settings/providers.json`），完整客户端身份头 | `api.cline.bot/api/v1` |
+
+免费模型目录在线发现，网络或登录态不可用时回退到内置验证过的静态名单。
+
+## 为什么做成扩展？
+
+参考 [deepseek-v4-for-copilot](https://github.com/Vizards/deepseek-v4-for-copilot)：
+不用再跑一个独立网关进程、再让 Copilot 指向自定义 OpenAI 端点，扩展直接接入
+Copilot Chat 自身使用的 provider API。零运行时依赖——纯 VS Code API + Node 内置模块。
+
+上游获取逻辑（AtomCode 请求签名、Zen 匿名通道请求形状、Cline 身份头、免费目录发现）
+沿用作者的本地网关项目 *freegw* 的方案；签名算法由 MIT 协议的
+atomgit-opencode-bridge / Atom2Api 项目独立公开。
+
+## 快速开始
+
+### 前置条件
+
+- VS Code 1.116+，装好 GitHub Copilot Chat（Copilot 免费档即可）
+- 按来源：
+  - **AtomCode** — 安装 [AtomCode CLI](https://atomcode.atomgit.com) 并执行 `atomcode login`
+  - **OpenCode** — 什么都不用装，Zen 免费通道是匿名的
+  - **Cline** — 安装 Cline 桌面应用并登录（保持登录状态）
+
+### 安装与使用
+
+1. 构建 VSIX（或直接到 Releases 下载）：
+   ```sh
+   npm install && npm run compile && npm run package   # -> dist/opencodecline2copilot-<ver>.vsix
+   ```
+2. 安装：`code --install-extension dist/opencodecline2copilot-<ver>.vsix`
+3. 打开 Copilot Chat，点开模型选择器，选择 **OpenCode · Cline · AtomCode** 分组下的模型。
+
+如果某个来源没出现，在命令面板运行 **Free Models: Show Source Status**，
+它会告诉你扩展在找哪个登录文件、出了什么问题；**Free Models: Refresh Model Catalog**
+会重新扫描在线目录。
+
+## 设置
+
+全部位于 `opencodecline.*`：
+
+| 设置 | 默认值 | 说明 |
+| --- | --- | --- |
+| `sources.atomcode.enabled` | `true` | 暴露 AtomCode 模型 |
+| `sources.opencode.enabled` | `true` | 暴露 OpenCode Zen 模型 |
+| `sources.cline.enabled` | `true` | 暴露 Cline 模型 |
+| `atomcode.home` | `""` | AtomCode 主目录（`~/.atomcode`，尊重 `ATOMCODE_HOME`） |
+| `atomcode.hosts` | llm-api / api-ai | AtomGit LLM 网关地址，按序尝试 |
+| `atomcode.clientVersion` | `""` | `X-AtomCode-Ver` 取值（留空 = 验证过的默认 `5.2.1`） |
+| `atomcode.allowRefresh` | `true` | 令牌过期时通过 `acs.atomgit.com/oauth/refresh` 换新 |
+| `atomcode.models` | `[]` | 模型 ID 白名单（空 = 全部发现） |
+| `opencode.baseUrl` | `https://opencode.ai/zen` | Zen 基础地址 |
+| `opencode.refreshSeconds` | `300` | 目录刷新周期（秒） |
+| `cline.home` | `""` | Cline 桌面端主目录（`~/.cline`，尊重 `CLINE_HOME`） |
+| `cline.baseUrl` | `https://api.cline.bot/api/v1` | Cline API 基础地址 |
+| `cline.clientType` / `cline.clientVersion` | `""` | 身份头取值（留空 = 验证过的默认值） |
+| `cline.allowRefresh` | `true` | 文件令牌过期时换新（不会踢掉桌面端会话） |
+| `cline.includeClinePass` | `false` | 同时暴露订阅制的 `clinePass` 模型桶 |
+| `debug` | `false` | 详细日志（输出面板："Free Models for Copilot"） |
+
+## 注意与限制
+
+- 免费通道是各服务的**限时政策**，随时可能调整或下线；上游本身有限流。
+- AtomCode/Cline 使用**你自己已登录的 CLI/桌面端凭证**；每次请求时从磁盘读取，
+  换发的令牌只存内存，CLI/桌面应用始终拥有自己的鉴权文件。
+- OpenCode 匿名通道按客户端身份限流，重度使用可能触发冷却。
+- 图片仅提供给具备 `imageInput` 能力的模型；上游返回的思维链会作为 Copilot
+  的 thinking 部分展示。
+
+请自行斟酌使用，并遵守 AtomCode、OpenCode、Cline 的服务条款。
+
+## 许可证
+
+[MIT](LICENSE)
