@@ -227,7 +227,7 @@ test('freeVerdict: probed-unusable ids are excluded even when metadata says free
 	assert.equal(opencode.freeVerdict('paid-model', { cost: { input: 1, output: 2 } }), false);
 });
 
-test('catalog: canonical groups, failover candidates and stable sort', () => {
+test('catalog: per-platform sections, canonical dedup and stable sort', () => {
 	const settings = {
 		debug: false,
 		atomcode: { enabled: true, home: '', hosts: [], clientVersion: '', models: [], allowRefresh: false },
@@ -235,24 +235,30 @@ test('catalog: canonical groups, failover candidates and stable sort', () => {
 		cline: { enabled: true, baseUrl: '', home: '', clientType: '', clientVersion: '', allowRefresh: false, includeClinePass: false },
 	};
 	const catalog = new Catalog(settings);
-	const groups = catalog.current();
-	const keys = groups.map((g) => g.key);
-	assert.deepEqual(keys, [...keys].sort((a, b) => a.localeCompare(b)), 'groups must be sorted by canonical key');
 
-	// mimo-v2.6-flash: opencode static + cline static group into one entry.
-	const mimo = catalog.resolve('mimo-v2.6-flash');
-	assert.ok(mimo);
-	assert.equal(mimo.candidates.length, 2);
-	assert.deepEqual(mimo.candidates.map((c) => c.meta.source), ['opencode', 'cline']);
-	// qwen3.8-27b: atomcode + cline group into one entry.
-	const qwen = catalog.resolve('qwen3.8-27b');
-	assert.ok(qwen);
-	assert.equal(qwen.candidates.length, 2);
-	assert.deepEqual(qwen.candidates.map((c) => c.meta.source), ['cline', 'atomcode']);
-	// Legacy "source/id" ids from an old session resolve to their group.
-	assert.ok(catalog.resolve('opencode/mimo-v2.6-flash-free'));
-	assert.ok(catalog.resolve('cline/cline-free/mimo-v2.6-flash'));
-	assert.equal(catalog.resolve('does-not-exist'), undefined);
-	// Merged capabilities: intersection, not union.
-	assert.equal(mimo.meta.imageInput, undefined, 'cline candidate has no imageInput — intersection must drop it');
+	// Each platform is its own section, sorted by canonical key.
+	for (const source of ['opencode', 'cline', 'atomcode']) {
+		const keys = catalog.currentFor(source).map((g) => g.key);
+		assert.deepEqual(keys, [...keys].sort((a, b) => a.localeCompare(b)), `${source} must be sorted by canonical key`);
+	}
+
+	// Within a platform, decorated variants dedup into one canonical entry.
+	const clineMimo = catalog.resolveFor('cline', 'mimo-v2.6-flash');
+	assert.ok(clineMimo);
+	assert.equal(clineMimo.candidates.length, 1);
+	assert.equal(clineMimo.candidates[0].meta.source, 'cline');
+	// The same underlying model lives under its own platform's section too.
+	const openMimo = catalog.resolveFor('opencode', 'mimo-v2.6-flash');
+	assert.ok(openMimo);
+	assert.equal(openMimo.candidates[0].meta.source, 'opencode');
+	// qwen3.8-27b exists on both atomcode and cline, as separate sections.
+	assert.ok(catalog.resolveFor('atomcode', 'qwen3.8-27b'));
+	assert.ok(catalog.resolveFor('cline', 'qwen3.8-27b'));
+	// Legacy "source/id" ids from an old session still resolve on their platform.
+	assert.ok(catalog.resolveFor('cline', 'cline/cline-free/mimo-v2.6-flash'));
+	assert.ok(catalog.resolveFor('opencode', 'opencode/mimo-v2.6-flash-free'));
+	// Cross-platform ids do not leak into the wrong section.
+	assert.equal(catalog.resolveFor('opencode', 'qwen3.8-27b'), undefined);
+	assert.equal(catalog.resolveFor('opencode', 'does-not-exist'), undefined);
+	assert.ok(catalog.totalCount > 0);
 });

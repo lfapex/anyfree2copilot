@@ -1,8 +1,8 @@
 {
   "name": "anyfree2copilot",
-  "displayName": "OpenCode/Cline/AtomCode Free Models for Copilot",
-  "description": "Use the free models behind OpenCode Zen, Cline and AtomCode (AtomGit CodingPlan) directly in Copilot Chat — agent mode, tool calling, MCP, all of it.",
-  "version": "0.1.1",
+  "displayName": "AnyFree for Copilot",
+  "description": "Free models from OpenCode Zen, Cline and AtomCode (AtomGit CodingPlan) in Copilot Chat, grouped by platform — agent mode, tool calling, MCP, all of it.",
+  "version": "0.2.0",
   "publisher": "lfapex",
   "license": "MIT",
   "repository": {
@@ -25,6 +25,7 @@
     "opencode",
     "cline",
     "atomcode",
+    "anyfree",
     "free models",
     "byok",
     "language model",
@@ -39,48 +40,56 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "anyfree2copilot",
-        "displayName": "OpenCode · Cline · AtomCode"
+        "vendor": "opencode",
+        "displayName": "OpenCode Zen (Free)"
+      },
+      {
+        "vendor": "cline",
+        "displayName": "Cline (Free)"
+      },
+      {
+        "vendor": "atomcode",
+        "displayName": "AtomCode (Free)"
       }
     ],
     "commands": [
       {
-        "command": "anyfree2copilot.showStatus",
-        "title": "Free Models: Show Source Status"
+        "command": "anyfree.showStatus",
+        "title": "AnyFree: Show Source Status"
       },
       {
-        "command": "anyfree2copilot.refreshModels",
-        "title": "Free Models: Refresh Model Catalog"
+        "command": "anyfree.refreshModels",
+        "title": "AnyFree: Refresh Model Catalog"
       },
       {
-        "command": "anyfree2copilot.showLogs",
-        "title": "Free Models: Show Logs"
+        "command": "anyfree.showLogs",
+        "title": "AnyFree: Show Logs"
       }
     ],
     "configuration": {
-      "title": "OpenCode/Cline/AtomCode Free Models",
+      "title": "AnyFree for Copilot",
       "properties": {
-        "anyfree2copilot.sources.atomcode.enabled": {
+        "anyfree.sources.atomcode.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Expose AtomCode (AtomGit CodingPlan) free models. Requires the AtomCode CLI to be logged in (`atomcode login`)."
         },
-        "anyfree2copilot.sources.opencode.enabled": {
+        "anyfree.sources.opencode.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Expose OpenCode Zen anonymous free-lane models. No account needed."
         },
-        "anyfree2copilot.sources.cline.enabled": {
+        "anyfree.sources.cline.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Expose Cline free models. Requires a signed-in Cline desktop app."
         },
-        "anyfree2copilot.atomcode.home": {
+        "anyfree.atomcode.home": {
           "type": "string",
           "default": "",
           "description": "AtomCode home directory. Empty = ~/.atomcode (honours the ATOMCODE_HOME environment variable)."
         },
-        "anyfree2copilot.atomcode.hosts": {
+        "anyfree.atomcode.hosts": {
           "type": "array",
           "items": { "type": "string" },
           "default": [
@@ -89,67 +98,67 @@
           ],
           "description": "AtomGit LLM gateway hosts, tried in order across failover attempts."
         },
-        "anyfree2copilot.atomcode.clientVersion": {
+        "anyfree.atomcode.clientVersion": {
           "type": "string",
           "default": "",
           "description": "Value sent as X-AtomCode-Ver. Empty = the version the signing scheme was verified against (5.2.1)."
         },
-        "anyfree2copilot.atomcode.allowRefresh": {
+        "anyfree.atomcode.allowRefresh": {
           "type": "boolean",
           "default": true,
           "description": "Allow minting a fresh access token via acs.atomgit.com/oauth/refresh when auth.toml's token is stale."
         },
-        "anyfree2copilot.atomcode.models": {
+        "anyfree.atomcode.models": {
           "type": "array",
           "items": { "type": "string" },
           "default": [],
           "description": "AtomCode model id allowlist. Empty = every AtomGit model discovered in the CLI's config.toml (fallback: the built-in verified roster)."
         },
-        "anyfree2copilot.opencode.baseUrl": {
+        "anyfree.opencode.baseUrl": {
           "type": "string",
           "default": "https://opencode.ai/zen",
           "description": "OpenCode Zen base URL."
         },
-        "anyfree2copilot.opencode.refreshSeconds": {
+        "anyfree.opencode.refreshSeconds": {
           "type": "number",
           "default": 300,
           "minimum": 30,
           "description": "How often the OpenCode Zen free-model catalog is refreshed, in seconds."
         },
-        "anyfree2copilot.cline.home": {
+        "anyfree.cline.home": {
           "type": "string",
           "default": "",
           "description": "Cline desktop home directory. Empty = ~/.cline (honours the CLINE_HOME environment variable)."
         },
-        "anyfree2copilot.cline.baseUrl": {
+        "anyfree.cline.baseUrl": {
           "type": "string",
           "default": "https://api.cline.bot/api/v1",
           "description": "Cline API base URL."
         },
-        "anyfree2copilot.cline.clientType": {
+        "anyfree.cline.clientType": {
           "type": "string",
           "default": "",
           "description": "Value sent as X-CLIENT-TYPE / X-PLATFORM. Empty = cline-sdk."
         },
-        "anyfree2copilot.cline.clientVersion": {
+        "anyfree.cline.clientVersion": {
           "type": "string",
           "default": "",
           "description": "Value sent as X-CLIENT-VERSION / X-PLATFORM-VERSION. Empty = 4.1.22."
         },
-        "anyfree2copilot.cline.allowRefresh": {
+        "anyfree.cline.allowRefresh": {
           "type": "boolean",
           "default": true,
           "description": "Allow minting a fresh access token via the Cline refresh endpoint when providers.json's token is stale (does not kick the desktop session)."
         },
-        "anyfree2copilot.cline.includeClinePass": {
+        "anyfree.cline.includeClinePass": {
           "type": "boolean",
           "default": false,
           "description": "Also expose the subscription-gated `clinePass` model bucket (403s without an active subscription)."
         },
-        "anyfree2copilot.debug": {
+        "anyfree.debug": {
           "type": "boolean",
           "default": false,
-          "description": "Verbose logging to the 'Free Models for Copilot' output channel."
+          "description": "Verbose logging to the 'AnyFree for Copilot' output channel."
         }
       }
     }
@@ -159,7 +168,7 @@
     "compile": "npm run clean && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "smoke": "node --test scripts/smoke.test.mjs",
-    "package": "vsce package -o dist/"
+    "package": "node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package -o dist/anyfree2copilot-0.2.0.vsix"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

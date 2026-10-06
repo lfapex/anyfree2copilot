@@ -3,9 +3,10 @@
 **Use the free models behind OpenCode, Cline and AtomCode directly in GitHub Copilot Chat.**
 
 This is a VS Code extension — no local proxy server to babysit. It registers a
-BYOK language-model provider, so the free lanes of the three coding tools show
-up as normal entries in the Copilot Chat model picker, with agent mode, tool
-calling, MCP and everything else Copilot gives you.
+BYOK language-model provider **per platform**, so the free lanes of the three
+coding tools show up as their own sections in the Copilot Chat model picker —
+**OpenCode Zen (Free)**, **Cline (Free)**, **AtomCode (Free)** — with agent
+mode, tool calling, MCP and everything else Copilot gives you.
 
 | Source | Free models | Auth | Lane |
 | --- | --- | --- | --- |
@@ -31,14 +32,15 @@ Atom2Api projects. The free-verdict discipline (metadata first, deprecated
 models never, verify-before-promote) follows
 [opencode2dsh](https://github.com/FishBottle7/opencode2dsh).
 
-## One entry per model, not per source
+## One section per platform
 
-The same model sold under different ids across sources — AtomCode
-`qwen3.8-27b`, Cline `qwen/qwen3.8-27b:free`, Zen `mimo-v2.6-flash-free` vs
-Cline `cline-free/mimo-v2.6-flash` — is advertised **once** under a canonical
-id. Each entry's candidate chain spans every source carrying the model, and a
-request fails over across the chain (rotating AtomCode's hosts first). The
-picker is sorted by canonical id for a stable order.
+Each platform gets its own picker section, so models are easy to find. Within
+a section, decoration variants of the same upstream id dedup into one
+canonical entry (Cline `cline-free/mimo-v2.6-flash` vs
+`vendor/mimo-v2.6-flash:free`), entries are sorted by canonical id for a
+stable order, and a request retries within the platform (rotating AtomCode's
+gateway hosts) before surfacing the error. The same model may appear in more
+than one platform's section — that is intentional: pick the lane you prefer.
 
 ## Keeping actually-free models only
 
@@ -70,17 +72,16 @@ probe of the anonymous lane are blocklisted:
    npm install && npm run compile && npm run package   # -> dist/anyfree2copilot-<ver>.vsix
    ```
 2. Install it: `code --install-extension dist/anyfree2copilot-<ver>.vsix`
-3. Open Copilot Chat, click the model picker, and pick models under
-   **OpenCode · Cline · AtomCode**.
+3. Open Copilot Chat, click the model picker, and pick models from the
+   **OpenCode Zen (Free)**, **Cline (Free)** or **AtomCode (Free)** sections.
 
-If a source is missing, run **Free Models: Show Source Status** from the
-Command Palette — it tells you exactly which login file the extension looked
-for and what went wrong. **Free Models: Refresh Model Catalog** re-scans the
-live catalogs.
+If a source is missing, run **AnyFree: Show Source Status** from the Command
+Palette — it tells you exactly which login file the extension looked for and
+what went wrong. **AnyFree: Refresh Model Catalog** re-scans the live catalogs.
 
 ## Settings
 
-All under `anyfree2copilot.*`:
+All under `anyfree.*`:
 
 | Setting | Default | Description |
 | --- | --- | --- |
@@ -99,7 +100,7 @@ All under `anyfree2copilot.*`:
 | `cline.clientType` / `cline.clientVersion` | `""` | Identity header values (empty = verified defaults) |
 | `cline.allowRefresh` | `true` | Mint fresh access tokens when the file token is stale (never kicks the desktop session) |
 | `cline.includeClinePass` | `false` | Also expose the subscription-gated `clinePass` bucket |
-| `debug` | `false` | Verbose logging (Output: "Free Models for Copilot") |
+| `debug` | `false` | Verbose logging (Output: "AnyFree for Copilot") |
 
 ## Notes & limitations
 

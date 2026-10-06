@@ -2,15 +2,14 @@ import vscode from 'vscode';
 
 import { runChatCompletion } from './stream';
 import { log } from './log';
-import { getSettings, type Settings } from './settings';
-import { Catalog, statusLines, type Group } from './sources';
+import type { Catalog, Group } from './sources';
+import type { SourceName } from './types';
 
 /**
- * Free-models chat provider — implements vscode.LanguageModelChatProvider so
- * the free lanes behind OpenCode Zen, Cline and AtomCode appear directly in
- * the Copilot Chat model picker. The same model sold under different ids
- * across sources is advertised once, as a canonical group whose candidates
- * fail over across the sources carrying it.
+ * Per-platform chat provider — implements vscode.LanguageModelChatProvider so
+ * each platform's free models appear as their own section in the Copilot Chat
+ * model picker (vendors: opencode / cline / atomcode). All sections share one
+ * Catalog; each provider only advertises and serves its own platform.
  */
 
 type PickerInfo = vscode.LanguageModelChatInformation & {
@@ -23,14 +22,13 @@ const DEFAULT_CONTEXT = 131_072;
 const DEFAULT_MAX_OUTPUT = 32_768;
 
 function toChatInfo(group: Group): PickerInfo {
-	const sourceNames = [...new Set(group.candidates.map((c) => c.source.name))].join(' + ');
 	return {
 		id: group.key,
 		name: group.meta.name ?? group.key,
 		family: group.meta.source,
 		version: '1.0.0',
-		detail: `free · via ${sourceNames}`,
-		tooltip: `${group.key} — free lanes: ${group.candidates.map((c) => `${c.source.name}/${c.meta.id}`).join(', ')}`,
+		detail: `free · via ${group.meta.source}`,
+		tooltip: `${group.key} — free lane: ${group.candidates.map((c) => c.meta.id).join(', ')}`,
 		maxInputTokens: group.meta.contextWindow ?? DEFAULT_CONTEXT,
 		maxOutputTokens: group.meta.maxOutput ?? DEFAULT_MAX_OUTPUT,
 		isBYOK: true,
@@ -42,81 +40,49 @@ function toChatInfo(group: Group): PickerInfo {
 	};
 }
 
-export class FreeModelsChatProvider implements vscode.LanguageModelChatProvider {
-	private readonly catalog: Catalog;
-	private readonly onDidChangeLanguageModelChatInformationEmitter = new vscode.EventEmitter<void>();
-	private refreshing = false;
+/** Shared background refresh driver across the per-platform providers. */
+export class CatalogRefresher {
+	#refreshing = false;
 
-	readonly onDidChangeLanguageModelChatInformation =
-		this.onDidChangeLanguageModelChatInformationEmitter.event;
+	constructor(
+		private readonly catalog: Catalog,
+		private readonly onChanged: () => void,
+	) {}
 
-	constructor(context: vscode.ExtensionContext) {
-		this.catalog = new Catalog(this.readSettings());
-		context.subscriptions.push(this.onDidChangeLanguageModelChatInformationEmitter);
-
-		context.subscriptions.push(
-			vscode.workspace.onDidChangeConfiguration((e) => {
-				if (e.affectsConfiguration('anyfree2copilot')) {
-					const settings = this.readSettings();
-					this.catalog.reconfigure(settings);
-					log.debugLog('provider', 'settings changed — catalog reconfigured');
-					this.refreshModelPicker();
-					void this.ensureFreshSoon();
-				}
-			}),
-		);
-	}
-
-	private readSettings(): Settings {
-		const settings = getSettings();
-		log.setDebug(settings.debug);
-		return settings;
-	}
-
-	/** Kick a background catalog refresh (single-flight) and fire on change. */
-	private async ensureFreshSoon(): Promise<void> {
-		if (this.refreshing) {
+	async refresh(force = false): Promise<void> {
+		if (this.#refreshing) {
 			return;
 		}
-		this.refreshing = true;
+		this.#refreshing = true;
 		try {
+			if (force) {
+				for (const source of this.catalog.sources) {
+					source.clearCache();
+				}
+			}
 			const changed = await this.catalog.ensureFresh();
-			if (changed) {
-				log.info('provider', `catalog changed — ${this.catalog.current().length} models advertised`);
-				this.refreshModelPicker();
+			if (changed || force) {
+				log.info('provider', `catalog refresh done — ${this.catalog.totalCount} models advertised`);
+				this.onChanged();
 			}
 		} catch (err) {
 			log.warn('provider', `catalog refresh failed: ${(err as Error).message}`);
 		} finally {
-			this.refreshing = false;
+			this.#refreshing = false;
 		}
 	}
+}
 
-	/** Force Copilot Chat to re-query model information. */
-	refreshModelPicker(): void {
-		this.onDidChangeLanguageModelChatInformationEmitter.fire();
-	}
+export class PlatformChatProvider implements vscode.LanguageModelChatProvider {
+	readonly onDidChangeLanguageModelChatInformation: vscode.Event<void>;
 
-	/** Command: refresh every source's catalog from scratch. */
-	async refreshModels(): Promise<void> {
-		for (const source of this.catalog.sources) {
-			source.clearCache();
-		}
-		await this.ensureFreshSoon();
-		void vscode.window.showInformationMessage(
-			`Free Models: catalog refreshed — ${this.catalog.current().length} models available`,
-		);
-	}
-
-	/** Command: per-source readiness overview. */
-	showStatus(): void {
-		const lines = statusLines(this.catalog);
-		const items = lines.map((line) => ({
-			label: line.split(':')[0],
-			description: line.split(':').slice(1).join(':').trim(),
-		}));
-		items.unshift({ label: `${this.catalog.current().length} models`, description: 'advertised to Copilot Chat' });
-		void vscode.window.showQuickPick(items, { placeHolder: 'Free Models source status' });
+	constructor(
+		private readonly catalog: Catalog,
+		readonly sourceName: SourceName,
+		onChanged: vscode.Event<void>,
+		private readonly onRequestRefresh: () => void,
+	) {
+		this.onDidChangeLanguageModelChatInformation = onChanged;
 	}
 
 	// ---- LanguageModelChatProvider ----
@@ -127,8 +93,8 @@ export class FreeModelsChatProvider implements vscode.LanguageModelChatProvider 
 	): Promise<vscode.LanguageModelChatInformation[]> {
 		// Advertise the cached/static catalog immediately; live-refresh in the
 		// background so the picker populates without blocking on the network.
-		void this.ensureFreshSoon();
-		return this.catalog.current().map(toChatInfo) as unknown as vscode.LanguageModelChatInformation[];
+		this.onRequestRefresh();
+		return this.catalog.currentFor(this.sourceName).map(toChatInfo) as unknown as vscode.LanguageModelChatInformation[];
 	}
 
 	async provideLanguageModelChatResponse(
@@ -138,13 +104,13 @@ export class FreeModelsChatProvider implements vscode.LanguageModelChatProvider 
 		progress: vscode.Progress<vscode.LanguageModelResponsePart>,
 		token: vscode.CancellationToken,
 	): Promise<void> {
-		const group = this.catalog.resolve(modelInfo.id);
+		const group = this.catalog.resolveFor(this.sourceName, modelInfo.id);
 		if (!group) {
 			throw new Error(
-				`model '${modelInfo.id}' is not exposed by any enabled source — run "Free Models: Refresh Model Catalog"`,
+				`model '${modelInfo.id}' is not available on '${this.sourceName}' — run "AnyFree: Refresh Model Catalog"`,
 			);
 		}
-		log.debugLog('provider', `chat request for ${group.key} via ${group.candidates.map((c) => c.source.name).join('+')}`);
+		log.debugLog(this.sourceName, `chat request for ${group.key}`);
 		return runChatCompletion({
 			group,
 			messages,

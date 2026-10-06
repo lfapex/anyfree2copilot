@@ -6,13 +6,12 @@ import { ClineSource } from './cline';
 import { OpenCodeSource } from './opencode';
 
 /**
- * Model catalog: merges every enabled source's models into canonical groups
- * (the same model sold under different ids across sources becomes ONE picker
- * entry whose candidates span every source carrying it — requests fail over
- * across the chain), following the grouping of the local freegw gateway.
+ * Model catalog. Each platform (source) is its own picker section — its
+ * models are grouped by canonical key (decoration variants like
+ * `cline-free/x` vs `org/x:free` dedup) and sorted for a stable order.
  */
 
-/** One picker entry: a canonical model with candidates across sources. */
+/** One picker entry within a platform section. */
 export interface Group {
 	key: string;
 	candidates: Array<{ source: Source; meta: ModelMeta }>;
@@ -20,15 +19,18 @@ export interface Group {
 	meta: ModelMeta;
 }
 
-const SOURCE_ORDER: SourceName[] = ['opencode', 'cline', 'atomcode'];
+/** Picker sections / vendor ids, matching the package.json contributions. */
+export const PLATFORMS: Array<{ vendor: string; source: SourceName }> = [
+	{ vendor: 'opencode', source: 'opencode' },
+	{ vendor: 'cline', source: 'cline' },
+	{ vendor: 'atomcode', source: 'atomcode' },
+];
 
 /**
- * Strip source-specific decorations from an upstream model id so the SAME
- * model sold under different ids (AtomCode `qwen3.8-27b`, Cline
- * `qwen/qwen3.8-27b:free`, Zen `mimo-v2.6-flash-free` vs Cline
- * `cline-free/mimo-v2.6-flash`) groups into one consistent chain.
- * Conservative on purpose: variant suffixes like `-fin`/`-sante` or size
- * specs (`-550b-a55b`) stay distinct.
+ * Strip source-specific decorations from an upstream model id so variants of
+ * the SAME model within one platform (Cline `cline-free/mimo-v2.6-flash` vs
+ * `vendor/mimo-v2.6-flash:free`) group into one entry. Conservative on
+ * purpose: variant suffixes like `-fin`/`-sante` or size specs stay distinct.
  */
 export function canonicalModelKey(id: string): string {
 	let key = id;
@@ -69,18 +71,12 @@ const STATIC_FALLBACK: Record<SourceName, ModelMeta[]> = {
 	],
 };
 
-function sourceRank(name: SourceName): number {
-	return SOURCE_ORDER.indexOf(name);
-}
-
 function stripSourceSuffix(name: string): string {
 	return name.replace(/\s*\((?:OpenCode|Cline|AtomCode)\)$/i, '').trim();
 }
 
-function mergeGroupMeta(key: string, candidates: Array<{ source: Source; meta: ModelMeta }>): ModelMeta {
-	const metas = candidates.map((c) => c.meta);
+function mergeGroupMeta(key: string, metas: ModelMeta[]): ModelMeta {
 	const contexts = metas.map((m) => m.contextWindow).filter((v): v is number => typeof v === 'number' && v > 0);
-	const sources = [...new Set(metas.map((m) => m.source))].sort((a, b) => sourceRank(a) - sourceRank(b));
 	let name = '';
 	for (const meta of metas) {
 		name = stripSourceSuffix(meta.name ?? '');
@@ -90,19 +86,36 @@ function mergeGroupMeta(key: string, candidates: Array<{ source: Source; meta: M
 	}
 	return {
 		id: key,
-		source: sources[0],
+		source: metas[0].source,
 		...(name ? { name } : { name: key }),
 		contextWindow: contexts.length > 0 ? Math.min(...contexts) : undefined,
-		// A chain is only as capable as its weakest candidate.
+		// A group is only as capable as its weakest candidate.
 		supportsTools: metas.every((m) => m.supportsTools !== false),
 		imageInput: metas.length > 0 && metas.every((m) => m.imageInput === true) ? true : undefined,
 		reasoning: metas.some((m) => m.reasoning === true) || undefined,
 	};
 }
 
+function buildSourceGroups(source: Source, models: ModelMeta[]): Map<string, Group> {
+	const byKey = new Map<string, Group>();
+	for (const meta of models) {
+		const key = canonicalModelKey(meta.id);
+		const group = byKey.get(key);
+		if (group) {
+			if (!group.candidates.some((c) => c.meta.id === meta.id)) {
+				group.candidates.push({ source, meta });
+				group.meta = mergeGroupMeta(key, group.candidates.map((c) => c.meta));
+			}
+		} else {
+			byKey.set(key, { key, candidates: [{ source, meta }], meta: mergeGroupMeta(key, [meta]) });
+		}
+	}
+	return byKey;
+}
+
 export class Catalog {
 	#sources: Source[];
-	#groups = new Map<string, Group>();
+	#bySource = new Map<SourceName, Map<string, Group>>();
 	#singleFlight = new Map<SourceName, Promise<void>>();
 	#lastRefresh = 0;
 
@@ -119,6 +132,10 @@ export class Catalog {
 		return this.#sources;
 	}
 
+	getSource(name: SourceName): Source | undefined {
+		return this.#sources.find((s) => s.name === name);
+	}
+
 	#staticPerSource(): Map<SourceName, ModelMeta[]> {
 		const perSource = new Map<SourceName, ModelMeta[]>();
 		for (const source of this.#sources) {
@@ -130,27 +147,10 @@ export class Catalog {
 	}
 
 	#rebuild(perSource: Map<SourceName, ModelMeta[]>): void {
-		const byKey = new Map<string, Array<{ source: Source; meta: ModelMeta }>>();
 		for (const source of this.#sources) {
-			const models = perSource.get(source.name);
-			if (!models) {
-				continue;
-			}
-			for (const meta of models) {
-				const key = canonicalModelKey(meta.id);
-				const list = byKey.get(key) ?? [];
-				if (!list.some((c) => c.meta.source === meta.source && c.meta.id === meta.id)) {
-					list.push({ source, meta });
-				}
-				byKey.set(key, list);
-			}
+			const models = perSource.get(source.name) ?? [];
+			this.#bySource.set(source.name, buildSourceGroups(source, models));
 		}
-		const groups = new Map<string, Group>();
-		for (const [key, candidates] of byKey) {
-			candidates.sort((a, b) => sourceRank(a.meta.source) - sourceRank(b.meta.source));
-			groups.set(key, { key, candidates, meta: mergeGroupMeta(key, candidates) });
-		}
-		this.#groups = groups;
 	}
 
 	/** Rebuild with fresh settings: recreate sources, drop caches, reset to static. */
@@ -168,22 +168,38 @@ export class Catalog {
 		this.#rebuild(this.#staticPerSource());
 	}
 
-	/** Current groups, sorted by canonical id for a stable picker order. */
-	current(): Group[] {
-		return [...this.#groups.values()].sort((a, b) => a.key.localeCompare(b.key));
+	/** One platform's groups, sorted by canonical key for a stable picker order. */
+	currentFor(source: SourceName): Group[] {
+		return [...(this.#bySource.get(source)?.values() ?? [])].sort((a, b) => a.key.localeCompare(b.key));
 	}
 
-	resolve(pickerModelId: string): Group | undefined {
-		const exact = this.#groups.get(pickerModelId);
-		if (exact) {
-			return exact;
+	/** Total number of advertised entries across all platforms. */
+	get totalCount(): number {
+		let total = 0;
+		for (const groups of this.#bySource.values()) {
+			total += groups.size;
 		}
-		// Legacy/aliased form "source/upstreamId": canonicalize the remainder.
+		return total;
+	}
+
+	resolveFor(source: SourceName, pickerModelId: string): Group | undefined {
+		const byKey = this.#bySource.get(source);
+		if (!byKey) {
+			return undefined;
+		}
+		const direct = byKey.get(pickerModelId);
+		if (direct) {
+			return direct;
+		}
+		const canonical = byKey.get(canonicalModelKey(pickerModelId));
+		if (canonical) {
+			return canonical;
+		}
+		// Legacy "source/upstreamId" ids from an older session.
 		const slash = pickerModelId.indexOf('/');
 		if (slash > 0) {
 			const rest = pickerModelId.slice(slash + 1);
-			const key = canonicalModelKey(rest);
-			return this.#groups.get(key);
+			return byKey.get(rest) ?? byKey.get(canonicalModelKey(rest));
 		}
 		return undefined;
 	}
@@ -193,8 +209,8 @@ export class Catalog {
 	 * applies its own cache window and falls back to its own static roster on
 	 * failure), then rebuild the groups from whatever the sources now report —
 	 * models that vanished upstream disappear from the picker instead of
-	 * lingering forever. Resolves `true` when the advertised catalog changed.
-	 * Never throws.
+	 * lingering. Resolves `true` when the advertised catalog changed. Never
+	 * throws.
 	 */
 	async ensureFresh(): Promise<boolean> {
 		this.#lastRefresh = Date.now();
@@ -221,10 +237,11 @@ export class Catalog {
 					return run;
 				}),
 		);
-		const before = JSON.stringify([...this.#groups.values()].map((g) => [g.key, g.candidates.map((c) => `${c.meta.source}:${c.meta.id}`), g.meta]));
+		const snapshot = () =>
+			JSON.stringify([...this.#bySource.entries()].map(([name, groups]) => [name, [...groups.keys()].sort(), [...groups.values()].map((g) => g.meta)]));
+		const before = snapshot();
 		this.#rebuild(perSource);
-		const after = JSON.stringify([...this.#groups.values()].map((g) => [g.key, g.candidates.map((c) => `${c.meta.source}:${c.meta.id}`), g.meta]));
-		return before !== after;
+		return before !== snapshot();
 	}
 
 	/** For the status view: when the last refresh round ran (0 = never). */

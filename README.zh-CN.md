@@ -2,9 +2,10 @@
 
 **把 OpenCode、Cline、AtomCode 背后的免费模型直接搬进 GitHub Copilot Chat。**
 
-这是一个 VS Code 扩展——不需要再单独跑一个本地网关进程。它注册的是一个
-BYOK 语言模型 provider，三家的免费通道会作为普通模型出现在 Copilot Chat
-的模型选择器里，agent 模式、工具调用、MCP 等 Copilot 全部能力照常可用。
+这是一个 VS Code 扩展——不需要再单独跑一个本地网关进程。它**按平台各注册一个**
+BYOK 语言模型 provider，三家的免费通道在 Copilot Chat 模型选择器里各自成区——
+**OpenCode Zen (Free)**、**Cline (Free)**、**AtomCode (Free)**——agent 模式、
+工具调用、MCP 等 Copilot 全部能力照常可用。
 
 | 来源 | 免费模型 | 鉴权 | 通道 |
 | --- | --- | --- | --- |
@@ -26,13 +27,13 @@ atomgit-opencode-bridge / Atom2Api 项目独立公开。免费判定纪律（元
 deprecated 一票否决、先验证后暴露）参考
 [opencode2dsh](https://github.com/FishBottle7/opencode2dsh)。
 
-## 同一模型只出现一次
+## 每个平台一个分区
 
-同一模型在不同来源下的不同 ID——AtomCode `qwen3.8-27b`、Cline
-`qwen/qwen3.8-27b:free`、Zen `mimo-v2.6-flash-free` 与 Cline
-`cline-free/mimo-v2.6-flash`——会合并为**一个**规范 ID 展示。每个条目的候选链
-覆盖所有携带该模型的来源，请求沿链自动故障切换（先轮换 AtomCode 的网关地址）。
-选择器按规范 ID 字母序稳定排列。
+每个平台在模型选择器里独立成区，找模型一目了然。分区内部，同一上游 ID 的装饰
+变体会合并为一个规范条目（Cline `cline-free/mimo-v2.6-flash` 与
+`vendor/mimo-v2.6-flash:free`），条目按规范 ID 字母序稳定排列；请求先在平台内
+重试（AtomCode 会轮换网关地址），失败才报错。同一个模型出现在多个平台的分区里
+是有意为之——想用哪家的通道就选哪个。
 
 ## 只保留真正免费的模型
 
@@ -63,15 +64,16 @@ deprecated 一票否决、先验证后暴露）参考
    npm install && npm run compile && npm run package   # -> dist/anyfree2copilot-<ver>.vsix
    ```
 2. 安装：`code --install-extension dist/anyfree2copilot-<ver>.vsix`
-3. 打开 Copilot Chat，点开模型选择器，选择 **OpenCode · Cline · AtomCode** 分组下的模型。
+3. 打开 Copilot Chat，点开模型选择器，从 **OpenCode Zen (Free)**、
+   **Cline (Free)** 或 **AtomCode (Free)** 分区里选模型。
 
-如果某个来源没出现，在命令面板运行 **Free Models: Show Source Status**，
-它会告诉你扩展在找哪个登录文件、出了什么问题；**Free Models: Refresh Model Catalog**
+如果某个来源没出现，在命令面板运行 **AnyFree: Show Source Status**，
+它会告诉你扩展在找哪个登录文件、出了什么问题；**AnyFree: Refresh Model Catalog**
 会重新扫描在线目录。
 
 ## 设置
 
-全部位于 `anyfree2copilot.*`：
+全部位于 `anyfree.*`：
 
 | 设置 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -90,7 +92,7 @@ deprecated 一票否决、先验证后暴露）参考
 | `cline.clientType` / `cline.clientVersion` | `""` | 身份头取值（留空 = 验证过的默认值） |
 | `cline.allowRefresh` | `true` | 文件令牌过期时换新（不会踢掉桌面端会话） |
 | `cline.includeClinePass` | `false` | 同时暴露订阅制的 `clinePass` 模型桶 |
-| `debug` | `false` | 详细日志（输出面板："Free Models for Copilot"） |
+| `debug` | `false` | 详细日志（输出面板："AnyFree for Copilot"） |
 
 ## 注意与限制
 

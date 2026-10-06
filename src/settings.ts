@@ -56,8 +56,8 @@ function strArray(section: vscode.WorkspaceConfiguration, key: string): string[]
 }
 
 export function getSettings(): Settings {
-	const root = vscode.workspace.getConfiguration('anyfree2copilot');
-	const sources = vscode.workspace.getConfiguration('anyfree2copilot.sources');
+	const root = vscode.workspace.getConfiguration('anyfree');
+	const sources = vscode.workspace.getConfiguration('anyfree.sources');
 	return {
 		debug: bool(root, 'debug', false),
 		atomcode: {
