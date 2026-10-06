@@ -2,7 +2,7 @@
   "name": "anyfree2copilot",
   "displayName": "AnyFree for Copilot",
   "description": "Free models from OpenCode Zen, Cline and AtomCode (AtomGit CodingPlan) in Copilot Chat, grouped by platform — agent mode, tool calling, MCP, all of it.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "lfapex",
   "license": "MIT",
   "repository": {
@@ -40,16 +40,16 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "cline",
-        "displayName": "1. Cline (Free)"
-      },
-      {
         "vendor": "opencode",
-        "displayName": "2. OpenCode Zen (Free)"
+        "displayName": "1. OpenCode Zen (Free)"
       },
       {
         "vendor": "atomcode",
-        "displayName": "3. AtomCode (Free)"
+        "displayName": "2. AtomCode (Free)"
+      },
+      {
+        "vendor": "cline",
+        "displayName": "3. Cline (Free)"
       }
     ],
     "commands": [
@@ -168,7 +168,7 @@
     "compile": "npm run clean && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "smoke": "node --test scripts/smoke.test.mjs",
-    "package": "node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package -o dist/anyfree2copilot-0.2.3.vsix"
+    "package": "node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package -o dist/anyfree2copilot-0.2.4.vsix"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

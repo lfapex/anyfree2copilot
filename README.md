@@ -34,14 +34,15 @@ models never, verify-before-promote) follows
 
 ## One section per platform
 
-Each platform gets its own picker section — **1. Cline (Free)**, then
-**2. OpenCode Zen (Free)**, then **3. AtomCode (Free)** — so models are easy
-to find. (The picker sorts vendor sections alphabetically by display name, so
-the names carry numeric prefixes to pin the order.) Within a section,
-decoration variants of the same upstream id dedup into one canonical entry
-(Cline `cline-free/mimo-v2.6-flash` vs `vendor/mimo-v2.6-flash:free`); Cline's
-own promo free fleet ("Try with limited usage at no cost") is pinned to the
-top of its section and the rest sorts by canonical id for a stable order; a
+Each platform gets its own picker section — **1. OpenCode Zen (Free)**, then
+**2. AtomCode (Free)**, then **3. Cline (Free)** — so models are easy to find.
+(The picker sorts vendor sections alphabetically by display name and re-sorts
+each section's models by name, so the order is pinned with numeric name
+prefixes.) Within a section, decoration variants of the same upstream id dedup
+into one canonical entry (Cline `cline-free/mimo-v2.6-flash` vs
+`vendor/mimo-v2.6-flash:free`); Cline's own promo free fleet ("Try with
+limited usage at no cost") is pinned to the top of its section with numbered
+names in Cline's recommendation order, the rest sorts by canonical id; a
 request retries within the platform (rotating AtomCode's gateway hosts)
 before surfacing the error. The same model may appear in more than one
 platform's section — that is intentional: pick the lane you prefer.

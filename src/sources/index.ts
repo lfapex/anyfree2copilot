@@ -21,12 +21,14 @@ export interface Group {
 
 /** Picker sections / vendor ids, matching the package.json contributions.
  *  The picker sorts vendor sections alphabetically by displayName (core
- *  workbench getVendors()), so the displayNames carry numeric prefixes
- *  ("1. Cline (Free)" …) to pin the intended order: Cline, OpenCode, AtomCode. */
+ *  workbench getVendors()) and each section's models by name, so order is
+ *  pinned with name prefixes: displayNames carry "1."/"2."/"3." prefixes
+ *  (OpenCode, AtomCode, Cline) and promo fleet names get numbered prefixes
+ *  at advertise time. */
 export const PLATFORMS: Array<{ vendor: string; source: SourceName }> = [
-	{ vendor: 'cline', source: 'cline' },
 	{ vendor: 'opencode', source: 'opencode' },
 	{ vendor: 'atomcode', source: 'atomcode' },
+	{ vendor: 'cline', source: 'cline' },
 ];
 
 /**

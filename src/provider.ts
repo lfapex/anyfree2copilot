@@ -21,10 +21,15 @@ type PickerInfo = vscode.LanguageModelChatInformation & {
 const DEFAULT_CONTEXT = 131_072;
 const DEFAULT_MAX_OUTPUT = 32_768;
 
-function toChatInfo(group: Group): PickerInfo {
+function toChatInfo(group: Group, promoIndex: number): PickerInfo {
+	const baseName = group.meta.name ?? group.key;
+	// The picker re-sorts each section's models by name, so the promo free
+	// fleet gets numbered name prefixes ("1. …", "2. …") to stay pinned to the
+	// top in the provider's recommendation order; digits sort before letters.
+	const name = promoIndex > 0 ? `${promoIndex}. ${baseName}` : baseName;
 	return {
 		id: group.key,
-		name: group.meta.name ?? group.key,
+		name,
 		family: group.meta.source,
 		version: '1.0.0',
 		detail: `free · via ${group.meta.source}`,
@@ -94,7 +99,10 @@ export class PlatformChatProvider implements vscode.LanguageModelChatProvider {
 		// Advertise the cached/static catalog immediately; live-refresh in the
 		// background so the picker populates without blocking on the network.
 		this.onRequestRefresh();
-		return this.catalog.currentFor(this.sourceName).map(toChatInfo) as unknown as vscode.LanguageModelChatInformation[];
+		let promoIndex = 0;
+		return this.catalog
+			.currentFor(this.sourceName)
+			.map((group) => toChatInfo(group, group.meta.promo === true ? (promoIndex += 1) : 0)) as unknown as vscode.LanguageModelChatInformation[];
 	}
 
 	async provideLanguageModelChatResponse(

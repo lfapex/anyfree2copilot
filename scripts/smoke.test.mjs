@@ -249,8 +249,8 @@ test('catalog: per-platform sections, canonical dedup and stable sort', () => {
 	const clineRest = clineKeys.slice(1); // static roster carries exactly one promo entry
 	assert.deepEqual(clineRest, [...clineRest].sort((a, b) => a.localeCompare(b)), 'non-promo cline entries must be sorted');
 
-	// Platform section order: Cline, OpenCode, AtomCode.
-	assert.deepEqual(PLATFORMS.map((p) => p.source), ['cline', 'opencode', 'atomcode']);
+	// Platform section order: OpenCode, AtomCode, Cline.
+	assert.deepEqual(PLATFORMS.map((p) => p.source), ['opencode', 'atomcode', 'cline']);
 
 	// Within a platform, decorated variants dedup into one canonical entry.
 	const clineMimo = catalog.resolveFor('cline', 'mimo-v2.6-flash');
