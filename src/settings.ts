@@ -56,8 +56,8 @@ function strArray(section: vscode.WorkspaceConfiguration, key: string): string[]
 }
 
 export function getSettings(): Settings {
-	const root = vscode.workspace.getConfiguration('opencodecline');
-	const sources = vscode.workspace.getConfiguration('opencodecline.sources');
+	const root = vscode.workspace.getConfiguration('anyfree2copilot');
+	const sources = vscode.workspace.getConfiguration('anyfree2copilot.sources');
 	return {
 		debug: bool(root, 'debug', false),
 		atomcode: {

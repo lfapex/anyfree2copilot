@@ -1,4 +1,4 @@
-# opencodecline2copilot
+# anyfree2copilot
 
 **把 OpenCode、Cline、AtomCode 背后的免费模型直接搬进 GitHub Copilot Chat。**
 
@@ -60,9 +60,9 @@ deprecated 一票否决、先验证后暴露）参考
 
 1. 构建 VSIX（或直接到 Releases 下载）：
    ```sh
-   npm install && npm run compile && npm run package   # -> dist/opencodecline2copilot-<ver>.vsix
+   npm install && npm run compile && npm run package   # -> dist/anyfree2copilot-<ver>.vsix
    ```
-2. 安装：`code --install-extension dist/opencodecline2copilot-<ver>.vsix`
+2. 安装：`code --install-extension dist/anyfree2copilot-<ver>.vsix`
 3. 打开 Copilot Chat，点开模型选择器，选择 **OpenCode · Cline · AtomCode** 分组下的模型。
 
 如果某个来源没出现，在命令面板运行 **Free Models: Show Source Status**，
@@ -71,7 +71,7 @@ deprecated 一票否决、先验证后暴露）参考
 
 ## 设置
 
-全部位于 `opencodecline.*`：
+全部位于 `anyfree2copilot.*`：
 
 | 设置 | 默认值 | 说明 |
 | --- | --- | --- |

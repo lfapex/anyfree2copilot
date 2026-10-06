@@ -1,5 +1,5 @@
 {
-  "name": "opencodecline2copilot",
+  "name": "anyfree2copilot",
   "displayName": "OpenCode/Cline/AtomCode Free Models for Copilot",
   "description": "Use the free models behind OpenCode Zen, Cline and AtomCode (AtomGit CodingPlan) directly in Copilot Chat — agent mode, tool calling, MCP, all of it.",
   "version": "0.1.1",
@@ -7,7 +7,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lfapex/opencodecline2copilot"
+    "url": "https://github.com/lfapex/anyfree2copilot"
   },
   "engines": {
     "vscode": "^1.116.0",
@@ -39,48 +39,48 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "opencodecline",
+        "vendor": "anyfree2copilot",
         "displayName": "OpenCode · Cline · AtomCode"
       }
     ],
     "commands": [
       {
-        "command": "opencodecline.showStatus",
+        "command": "anyfree2copilot.showStatus",
         "title": "Free Models: Show Source Status"
       },
       {
-        "command": "opencodecline.refreshModels",
+        "command": "anyfree2copilot.refreshModels",
         "title": "Free Models: Refresh Model Catalog"
       },
       {
-        "command": "opencodecline.showLogs",
+        "command": "anyfree2copilot.showLogs",
         "title": "Free Models: Show Logs"
       }
     ],
     "configuration": {
       "title": "OpenCode/Cline/AtomCode Free Models",
       "properties": {
-        "opencodecline.sources.atomcode.enabled": {
+        "anyfree2copilot.sources.atomcode.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Expose AtomCode (AtomGit CodingPlan) free models. Requires the AtomCode CLI to be logged in (`atomcode login`)."
         },
-        "opencodecline.sources.opencode.enabled": {
+        "anyfree2copilot.sources.opencode.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Expose OpenCode Zen anonymous free-lane models. No account needed."
         },
-        "opencodecline.sources.cline.enabled": {
+        "anyfree2copilot.sources.cline.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Expose Cline free models. Requires a signed-in Cline desktop app."
         },
-        "opencodecline.atomcode.home": {
+        "anyfree2copilot.atomcode.home": {
           "type": "string",
           "default": "",
           "description": "AtomCode home directory. Empty = ~/.atomcode (honours the ATOMCODE_HOME environment variable)."
         },
-        "opencodecline.atomcode.hosts": {
+        "anyfree2copilot.atomcode.hosts": {
           "type": "array",
           "items": { "type": "string" },
           "default": [
@@ -89,64 +89,64 @@
           ],
           "description": "AtomGit LLM gateway hosts, tried in order across failover attempts."
         },
-        "opencodecline.atomcode.clientVersion": {
+        "anyfree2copilot.atomcode.clientVersion": {
           "type": "string",
           "default": "",
           "description": "Value sent as X-AtomCode-Ver. Empty = the version the signing scheme was verified against (5.2.1)."
         },
-        "opencodecline.atomcode.allowRefresh": {
+        "anyfree2copilot.atomcode.allowRefresh": {
           "type": "boolean",
           "default": true,
           "description": "Allow minting a fresh access token via acs.atomgit.com/oauth/refresh when auth.toml's token is stale."
         },
-        "opencodecline.atomcode.models": {
+        "anyfree2copilot.atomcode.models": {
           "type": "array",
           "items": { "type": "string" },
           "default": [],
           "description": "AtomCode model id allowlist. Empty = every AtomGit model discovered in the CLI's config.toml (fallback: the built-in verified roster)."
         },
-        "opencodecline.opencode.baseUrl": {
+        "anyfree2copilot.opencode.baseUrl": {
           "type": "string",
           "default": "https://opencode.ai/zen",
           "description": "OpenCode Zen base URL."
         },
-        "opencodecline.opencode.refreshSeconds": {
+        "anyfree2copilot.opencode.refreshSeconds": {
           "type": "number",
           "default": 300,
           "minimum": 30,
           "description": "How often the OpenCode Zen free-model catalog is refreshed, in seconds."
         },
-        "opencodecline.cline.home": {
+        "anyfree2copilot.cline.home": {
           "type": "string",
           "default": "",
           "description": "Cline desktop home directory. Empty = ~/.cline (honours the CLINE_HOME environment variable)."
         },
-        "opencodecline.cline.baseUrl": {
+        "anyfree2copilot.cline.baseUrl": {
           "type": "string",
           "default": "https://api.cline.bot/api/v1",
           "description": "Cline API base URL."
         },
-        "opencodecline.cline.clientType": {
+        "anyfree2copilot.cline.clientType": {
           "type": "string",
           "default": "",
           "description": "Value sent as X-CLIENT-TYPE / X-PLATFORM. Empty = cline-sdk."
         },
-        "opencodecline.cline.clientVersion": {
+        "anyfree2copilot.cline.clientVersion": {
           "type": "string",
           "default": "",
           "description": "Value sent as X-CLIENT-VERSION / X-PLATFORM-VERSION. Empty = 4.1.22."
         },
-        "opencodecline.cline.allowRefresh": {
+        "anyfree2copilot.cline.allowRefresh": {
           "type": "boolean",
           "default": true,
           "description": "Allow minting a fresh access token via the Cline refresh endpoint when providers.json's token is stale (does not kick the desktop session)."
         },
-        "opencodecline.cline.includeClinePass": {
+        "anyfree2copilot.cline.includeClinePass": {
           "type": "boolean",
           "default": false,
           "description": "Also expose the subscription-gated `clinePass` model bucket (403s without an active subscription)."
         },
-        "opencodecline.debug": {
+        "anyfree2copilot.debug": {
           "type": "boolean",
           "default": false,
           "description": "Verbose logging to the 'Free Models for Copilot' output channel."

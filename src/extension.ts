@@ -12,10 +12,10 @@ export function activate(context: vscode.ExtensionContext): void {
 	const provider = new FreeModelsChatProvider(context);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('opencodecline.showStatus', () => provider.showStatus()),
-		vscode.commands.registerCommand('opencodecline.refreshModels', () => provider.refreshModels()),
-		vscode.commands.registerCommand('opencodecline.showLogs', () => log.show()),
-		vscode.lm.registerLanguageModelChatProvider('opencodecline', provider),
+		vscode.commands.registerCommand('anyfree2copilot.showStatus', () => provider.showStatus()),
+		vscode.commands.registerCommand('anyfree2copilot.refreshModels', () => provider.refreshModels()),
+		vscode.commands.registerCommand('anyfree2copilot.showLogs', () => log.show()),
+		vscode.lm.registerLanguageModelChatProvider('anyfree2copilot', provider),
 	);
 
 	// Make models discoverable without waiting for Copilot, which may itself

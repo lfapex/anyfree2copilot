@@ -1,4 +1,4 @@
-# opencodecline2copilot
+# anyfree2copilot
 
 **Use the free models behind OpenCode, Cline and AtomCode directly in GitHub Copilot Chat.**
 
@@ -67,9 +67,9 @@ probe of the anonymous lane are blocklisted:
 
 1. Build a VSIX (or grab one from Releases):
    ```sh
-   npm install && npm run compile && npm run package   # -> dist/opencodecline2copilot-<ver>.vsix
+   npm install && npm run compile && npm run package   # -> dist/anyfree2copilot-<ver>.vsix
    ```
-2. Install it: `code --install-extension dist/opencodecline2copilot-<ver>.vsix`
+2. Install it: `code --install-extension dist/anyfree2copilot-<ver>.vsix`
 3. Open Copilot Chat, click the model picker, and pick models under
    **OpenCode · Cline · AtomCode**.
 
@@ -80,7 +80,7 @@ live catalogs.
 
 ## Settings
 
-All under `opencodecline.*`:
+All under `anyfree2copilot.*`:
 
 | Setting | Default | Description |
 | --- | --- | --- |

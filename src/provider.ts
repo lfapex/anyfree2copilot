@@ -56,7 +56,7 @@ export class FreeModelsChatProvider implements vscode.LanguageModelChatProvider 
 
 		context.subscriptions.push(
 			vscode.workspace.onDidChangeConfiguration((e) => {
-				if (e.affectsConfiguration('opencodecline')) {
+				if (e.affectsConfiguration('anyfree2copilot')) {
 					const settings = this.readSettings();
 					this.catalog.reconfigure(settings);
 					log.debugLog('provider', 'settings changed — catalog reconfigured');
