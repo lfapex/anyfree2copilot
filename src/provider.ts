@@ -27,13 +27,17 @@ function toChatInfo(group: Group, promoIndex: number): PickerInfo {
 	// fleet gets numbered name prefixes ("1. …", "2. …") to stay pinned to the
 	// top in the provider's recommendation order; digits sort before letters.
 	const name = promoIndex > 0 ? `${promoIndex}. ${baseName}` : baseName;
+	// FreeGW virtual models surface their failover chain on hover.
+	const chain = group.meta.chain?.join(' → ');
 	return {
 		id: group.key,
 		name,
 		family: group.meta.source,
 		version: '1.0.0',
 		detail: `free · via ${group.meta.source}`,
-		tooltip: `${group.key} — free lane: ${group.candidates.map((c) => c.meta.id).join(', ')}`,
+		tooltip: chain
+			? `${group.key} — failover chain: ${chain}`
+			: `${group.key} — free lane: ${group.candidates.map((c) => c.meta.id).join(', ')}`,
 		maxInputTokens: group.meta.contextWindow ?? DEFAULT_CONTEXT,
 		maxOutputTokens: group.meta.maxOutput ?? DEFAULT_MAX_OUTPUT,
 		isBYOK: true,

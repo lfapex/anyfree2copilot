@@ -359,19 +359,20 @@ export class ClineSource implements Source {
 		}
 		const session = deriveClineSession(payloadBody);
 		const payload = JSON.stringify(payloadBody);
-		return {
-			url: `${this.#base()}/chat/completions`,
-			headers: {
-				'content-type': 'application/json',
-				...headers,
-				'x-client-request-id': randomUUID(),
-				'x-session-affinity': session,
-			},
-			body: payload,
-			forceStream: false,
-			via: `${this.name}@api.cline.bot`,
-		};
-	}
+	return {
+		url: `${this.#base()}/chat/completions`,
+		headers: {
+			'content-type': 'application/json',
+			...headers,
+			'x-client-request-id': randomUUID(),
+			'x-session-affinity': session,
+		},
+		body: payload,
+		forceStream: false,
+		via: `${this.name}@api.cline.bot`,
+		requestExt: { x_cline_session: session },
+	};
+}
 
 	isRetryable(status: number | undefined): boolean {
 		return status === undefined || status === 401 || status === 403 || status === 408 || status === 429 || (status >= 500 && status <= 599);

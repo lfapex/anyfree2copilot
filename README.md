@@ -5,14 +5,18 @@
 This is a VS Code extension — no local proxy server to babysit. It registers a
 BYOK language-model provider **per platform**, so the free lanes of the three
 coding tools show up as their own sections in the Copilot Chat model picker —
-**OpenCode Zen (Free)**, **Cline (Free)**, **AtomCode (Free)** — with agent
-mode, tool calling, MCP and everything else Copilot gives you.
+**OpenCode Zen (Free)**, **Cline (Free)**, **AtomCode (Free)** — plus an
+unnumbered **freegw** section carrying the virtual
+models of the author's local [freegw](https://github.com/lfapex/freegw)
+gateway — with agent mode, tool calling, MCP and everything else Copilot
+gives you.
 
 | Source | Free models | Auth | Lane |
 | --- | --- | --- | --- |
 | **AtomCode** (AtomGit CodingPlan) | `qwen3.8-27b`, `glm5.3-flash`, more auto-discovered from the CLI's `config.toml` | Your own AtomCode CLI login (`atomcode login` → `~/.atomcode/auth.toml`), requests signed with `atomcode-signing-v1` | `llm-api.atomgit.com/v1` (failover: `api-ai.gitcode.com/v1`) |
 | **OpenCode Zen** anonymous lane | `big-pickle`, `mimo-v2.6-flash-free`, `ling-3.1-flash-free`, `nemotron-3.5-lightning-free`, … (live-discovered) | None — anonymous lane dressed as the OpenCode CLI | `opencode.ai/zen/v1` |
 | **Cline** (desktop account) | `cline-free/deepseek-v4.1-flash`, `cline-free/mimo-v2.6-flash`, `qwen/qwen3.8-27b:free`, `nvidia/nemotron-3.5-lightning:free`, … (20+ live-discovered) | Your own Cline desktop login (`~/.cline/data/settings/providers.json`), full client identity header set | `api.cline.bot/api/v1` |
+| **FreeGW** (local relay) | The gateway's **virtual models** only — failover chains you define in freegw's config (`main-coder`, `long-context`, …); pin one id and the gateway absorbs upstream churn, health tracking and cross-source failover. The individual lanes stay in their own platform sections. | Whatever the gateway needs — an API key only if freegw's config sets one | `http://127.0.0.1:8484/v1` |
 
 Free catalogs are discovered live and fall back to a verified static roster
 when the network (or your login state) is unavailable.
@@ -35,7 +39,9 @@ models never, verify-before-promote) follows
 ## One section per platform
 
 Each platform gets its own picker section — **1. OpenCode Zen (Free)**, then
-**2. AtomCode (Free)**, then **3. Cline (Free)** — so models are easy to find.
+**2. AtomCode (Free)**, then **3. Cline (Free)** — so models are easy to
+find; the freegw relay adds an unnumbered **freegw**
+section at the end.
 (The picker sorts vendor sections alphabetically by display name and re-sorts
 each section's models by name, so the order is pinned with numeric name
 prefixes.) Within a section, decoration variants of the same upstream id dedup
@@ -69,6 +75,7 @@ probe of the anonymous lane are blocklisted:
   - **AtomCode** — install the [AtomCode CLI](https://atomcode.atomgit.com) and run `atomcode login`
   - **OpenCode** — nothing; the Zen free lane is anonymous
   - **Cline** — install the Cline desktop app and sign in (keep it logged in)
+  - **FreeGW** — run the [freegw](https://github.com/lfapex/freegw) gateway (`dist\freegw.exe` or `npm start`, listens on `http://127.0.0.1:8484`); until it is up the section simply stays empty
 
 ### Install & use
 
@@ -105,6 +112,10 @@ All under `anyfree.*`:
 | `cline.clientType` / `cline.clientVersion` | `""` | Identity header values (empty = verified defaults) |
 | `cline.allowRefresh` | `true` | Mint fresh access tokens when the file token is stale (never kicks the desktop session) |
 | `cline.includeClinePass` | `false` | Also expose the subscription-gated `clinePass` bucket |
+| `sources.freegw.enabled` | `true` | Expose the gateway's virtual (failover-chain) models |
+| `freegw.baseUrl` | `http://127.0.0.1:8484` | Gateway base URL (trailing `/v1` tolerated) |
+| `freegw.apiKey` | `""` | Bearer key expected by the gateway (empty = none, matching freegw's default config) |
+| `freegw.refreshSeconds` | `120` | Catalog refresh cadence |
 | `debug` | `false` | Verbose logging (Output: "AnyFree for Copilot") |
 
 ## Notes & limitations
@@ -124,7 +135,8 @@ All under `anyfree.*`:
   change or disappear at any moment; models are rate-limited by the upstreams.
 - The picker reflects each source's **live catalog** once it answers; the
   built-in static roster is only a cold-start/failure fallback, so delisted
-  models disappear instead of lingering.
+  models disappear instead of lingering. FreeGW is the exception — it has no
+  static roster, so its section is empty whenever the gateway is not running.
 - AtomCode/Cline request the **credentials of your own logged-in CLI/desktop
   session**; tokens are read from disk per request, minted refresh tokens live
   in memory only, and the CLI/desktop apps keep owning their auth files.

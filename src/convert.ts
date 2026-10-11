@@ -1,5 +1,7 @@
 import vscode from 'vscode';
 
+import { log } from './log';
+import { truncateHistory } from './truncate';
 import type { ModelMeta } from './types';
 import type {
 	ChatCompletionRequest,
@@ -89,9 +91,14 @@ export function convertToChatRequest(
 	const tools = convertTools(options.tools);
 	const toolChoice = convertToolChoice(options);
 
+	const history = truncateHistory(out, meta);
+	if (history.length < out.length) {
+		log.info('convert', `history trimmed ${out.length} -> ${history.length} messages to fit the model's input budget`);
+	}
+
 	return {
 		model: upstreamModelId,
-		messages: out,
+		messages: history,
 		stream: true,
 		stream_options: { include_usage: true },
 		...(tools ? { tools } : {}),

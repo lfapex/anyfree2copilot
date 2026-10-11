@@ -4,14 +4,16 @@
 
 这是一个 VS Code 扩展——不需要再单独跑一个本地网关进程。它**按平台各注册一个**
 BYOK 语言模型 provider，三家的免费通道在 Copilot Chat 模型选择器里各自成区——
-**OpenCode Zen (Free)**、**Cline (Free)**、**AtomCode (Free)**——agent 模式、
-工具调用、MCP 等 Copilot 全部能力照常可用。
+**OpenCode Zen (Free)**、**Cline (Free)**、**AtomCode (Free)**——外加一个不带
+编号的 **freegw** 分区，只放本地 [freegw](https://github.com/lfapex/freegw)
+网关的虚拟模型——agent 模式、工具调用、MCP 等 Copilot 全部能力照常可用。
 
 | 来源 | 免费模型 | 鉴权 | 通道 |
 | --- | --- | --- | --- |
 | **AtomCode**（AtomGit CodingPlan） | `qwen3.8-27b`、`glm5.3-flash` 等，自动从 CLI 的 `config.toml` 发现 | 你自己已登录的 AtomCode CLI（`atomcode login` → `~/.atomcode/auth.toml`），请求带 `atomcode-signing-v1` 签名 | `llm-api.atomgit.com/v1`（故障切换：`api-ai.gitcode.com/v1`） |
 | **OpenCode Zen** 匿名通道 | `big-pickle`、`mimo-v2.6-flash-free`、`ling-3.1-flash-free`、`nemotron-3.5-lightning-free` 等（在线发现） | 无需账号，伪装成 OpenCode CLI 的匿名通道 | `opencode.ai/zen/v1` |
 | **Cline**（桌面端账号） | `cline-free/deepseek-v4.1-flash`、`cline-free/mimo-v2.6-flash`、`qwen/qwen3.8-27b:free`、`nvidia/nemotron-3.5-lightning:free` 等（20+ 在线发现） | 你自己已登录的 Cline 桌面端（`~/.cline/data/settings/providers.json`），完整客户端身份头 | `api.cline.bot/api/v1` |
+| **FreeGW**（本地中转） | **只暴露网关的虚拟模型**——freegw 配置里的故障切换链（`main-coder`、`long-context` 等）：钉住一个 id，上游下架、健康度、跨源切换全由网关吸收；各通道模型仍在各自平台分区里 | 按网关配置——仅当 freegw 配置了 apiKey 时才需要 | `http://127.0.0.1:8484/v1` |
 
 免费模型目录在线发现，网络或登录态不可用时回退到内置验证过的静态名单。
 
@@ -30,7 +32,8 @@ deprecated 一票否决、先验证后暴露）参考
 ## 每个平台一个分区
 
 每个平台在模型选择器里独立成区，顺序为 **1. OpenCode Zen (Free) → 2. AtomCode
-(Free) → 3. Cline (Free)**，找模型一目了然。（选择器对分区按显示名字母序、对
+(Free) → 3. Cline (Free)**，找模型一目了然；freegw 中转在最后追加一个不带编号的
+**freegw** 分区。（选择器对分区按显示名字母序、对
 分区内的模型按名称字母序排列，因此顺序靠名称数字前缀固定。）分区内部，同一上游
 ID 的装饰变体会合并为一个规范条目（Cline `cline-free/mimo-v2.6-flash` 与
 `vendor/mimo-v2.6-flash:free`）；Cline 官方免费车队（"Try with limited usage
@@ -59,6 +62,7 @@ at no cost"）带动态序号固定排在分区最前（顺序即 Cline 官方�
   - **AtomCode** — 安装 [AtomCode CLI](https://atomcode.atomgit.com) 并执行 `atomcode login`
   - **OpenCode** — 什么都不用装，Zen 免费通道是匿名的
   - **Cline** — 安装 Cline 桌面应用并登录（保持登录状态）
+  - **FreeGW** — 启动 [freegw](https://github.com/lfapex/freegw) 网关（`dist\freegw.exe` 或 `npm start`，监听 `http://127.0.0.1:8484`）；网关没起时该分区只是空着
 
 ### 安装与使用
 
@@ -68,7 +72,8 @@ at no cost"）带动态序号固定排在分区最前（顺序即 Cline 官方�
    ```
 2. 安装：`code --install-extension dist/anyfree2copilot-<ver>.vsix`
 3. 打开 Copilot Chat，点开模型选择器，从 **OpenCode Zen (Free)**、
-   **Cline (Free)** 或 **AtomCode (Free)** 分区里选模型。
+   **Cline (Free)**、**AtomCode (Free)** 或 **freegw**
+   分区里选模型。
 
 如果某个来源没出现，在命令面板运行 **AnyFree: Show Source Status**，
 它会告诉你扩展在找哪个登录文件、出了什么问题；**AnyFree: Refresh Model Catalog**
@@ -95,6 +100,10 @@ at no cost"）带动态序号固定排在分区最前（顺序即 Cline 官方�
 | `cline.clientType` / `cline.clientVersion` | `""` | 身份头取值（留空 = 验证过的默认值） |
 | `cline.allowRefresh` | `true` | 文件令牌过期时换新（不会踢掉桌面端会话） |
 | `cline.includeClinePass` | `false` | 同时暴露订阅制的 `clinePass` 模型桶 |
+| `sources.freegw.enabled` | `true` | 暴露网关的虚拟模型（故障切换链） |
+| `freegw.baseUrl` | `http://127.0.0.1:8484` | 网关基础地址（末尾带 `/v1` 也能识别） |
+| `freegw.apiKey` | `""` | 网关期望的 Bearer 密钥（留空 = 不带鉴权头，匹配 freegw 默认配置） |
+| `freegw.refreshSeconds` | `120` | 目录刷新周期（秒） |
 | `debug` | `false` | 详细日志（输出面板："AnyFree for Copilot"） |
 
 ## 注意与限制
@@ -110,7 +119,8 @@ at no cost"）带动态序号固定排在分区最前（顺序即 Cline 官方�
   [deepseek-v4-for-copilot#284](https://github.com/Vizards/deepseek-v4-for-copilot/issues/284)）。
 - 免费通道是各服务的**限时政策**，随时可能调整或下线；上游本身有限流。
 - 目录以各来源的**在线名单**为准；内置静态名单只用于冷启动/故障兜底，
-  上游下架的模型会随之消失，不会一直残留。
+  上游下架的模型会随之消失，不会一直残留。FreeGW 是例外——没有静态名单，
+  网关未运行时该分区直接为空。
 - AtomCode/Cline 使用**你自己已登录的 CLI/桌面端凭证**；每次请求时从磁盘读取，
   换发的令牌只存内存，CLI/桌面应用始终拥有自己的鉴权文件。
 - OpenCode 匿名通道按客户端身份限流，重度使用可能触发冷却。

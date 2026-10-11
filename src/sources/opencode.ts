@@ -308,7 +308,8 @@ export class OpenCodeSource implements Source {
 			forceStream: true,
 			via: `${this.name}@zen-anonymous`,
 			stripGateTools: shaped.injected,
-		};
+			requestExt: { ...ids },
+	};
 	}
 
 	isRetryable(status: number | undefined): boolean {

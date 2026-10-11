@@ -3,6 +3,7 @@ import type { Settings } from '../settings';
 import type { ModelMeta, Source, SourceName } from '../types';
 import { AtomCodeSource } from './atomcode';
 import { ClineSource } from './cline';
+import { FreeGWSource } from './freegw';
 import { OpenCodeSource } from './opencode';
 
 /**
@@ -22,13 +23,14 @@ export interface Group {
 /** Picker sections / vendor ids, matching the package.json contributions.
  *  The picker sorts vendor sections alphabetically by displayName (core
  *  workbench getVendors()) and each section's models by name, so order is
- *  pinned with name prefixes: displayNames carry "1."/"2."/"3." prefixes
- *  (OpenCode, AtomCode, Cline) and promo fleet names get numbered prefixes
- *  at advertise time. */
+ *  pinned with name prefixes: displayNames carry "1."/"2."/"3."/"4." prefixes
+ *  (OpenCode, AtomCode, Cline, FreeGW) and promo fleet names get numbered
+ *  prefixes at advertise time. */
 export const PLATFORMS: Array<{ vendor: string; source: SourceName }> = [
 	{ vendor: 'opencode', source: 'opencode' },
 	{ vendor: 'atomcode', source: 'atomcode' },
 	{ vendor: 'cline', source: 'cline' },
+	{ vendor: 'freegw', source: 'freegw' },
 ];
 
 /**
@@ -74,10 +76,13 @@ const STATIC_FALLBACK: Record<SourceName, ModelMeta[]> = {
 		{ id: 'cline-free/mimo-v2.6-flash', source: 'cline', name: 'MiMo V2.6 Flash (Cline)', supportsTools: true, promo: true },
 		{ id: 'qwen/qwen3.8-27b:free', source: 'cline', name: 'Qwen3.8-27B Free (Cline)', supportsTools: true },
 	],
+	// No static roster: the FreeGW section is empty until the local gateway
+	// answers (advertising models a dead gateway cannot serve is worse).
+	freegw: [],
 };
 
 function stripSourceSuffix(name: string): string {
-	return name.replace(/\s*\((?:OpenCode|Cline|AtomCode)\)$/i, '').trim();
+	return name.replace(/\s*\((?:OpenCode|Cline|AtomCode|FreeGW)\)$/i, '').trim();
 }
 
 function mergeGroupMeta(key: string, metas: ModelMeta[]): ModelMeta {
@@ -99,6 +104,9 @@ function mergeGroupMeta(key: string, metas: ModelMeta[]): ModelMeta {
 		imageInput: metas.length > 0 && metas.every((m) => m.imageInput === true) ? true : undefined,
 		reasoning: metas.some((m) => m.reasoning === true) || undefined,
 		promo: metas.length > 0 && metas.every((m) => m.promo === true) ? true : undefined,
+		// Virtual-model failover chains (FreeGW) survive grouping untouched —
+		// candidates all carry the same chain or none.
+		chain: metas.find((m) => m.chain)?.chain,
 	};
 }
 
@@ -130,6 +138,7 @@ export class Catalog {
 			new AtomCodeSource(settings.atomcode),
 			new OpenCodeSource(settings.opencode),
 			new ClineSource(settings.cline),
+			new FreeGWSource(settings.freegw),
 		];
 		this.#rebuild(this.#staticPerSource());
 	}
@@ -168,6 +177,7 @@ export class Catalog {
 			new AtomCodeSource(settings.atomcode),
 			new OpenCodeSource(settings.opencode),
 			new ClineSource(settings.cline),
+			new FreeGWSource(settings.freegw),
 		];
 		this.#singleFlight.clear();
 		this.#lastRefresh = 0;

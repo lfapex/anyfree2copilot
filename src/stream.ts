@@ -8,6 +8,7 @@ import type {
 	ChatStreamChunk,
 	ChatUsage,
 } from './types';
+import { createHash, randomBytes } from 'node:crypto';
 
 /**
  * Run one chat completion over a canonical group's candidate chain: prepare
@@ -71,10 +72,25 @@ export async function runChatCompletion({
 			}
 
 			try {
+				const mergedBody = prepared.requestExt
+					? JSON.parse(prepared.body.toString())
+					: prepared.body;
+
+				const bodyPayload: string | Uint8Array = prepared.requestExt
+					? (() => {
+						const m = { ...mergedBody } as Record<string, unknown>;
+						// requestExt 里放的是对象字典（例如会话 id 集合），逐项合并进请求体最外层。
+						for (const [k, v] of Object.entries(prepared.requestExt ?? {})) {
+							m[k] = v;
+						}
+						return JSON.stringify(m) as string;
+					})()
+					: prepared.body;
+
 				const res = await fetch(prepared.url, {
 					method: 'POST',
 					headers: prepared.headers,
-					body: prepared.body,
+					body: bodyPayload,
 					signal: controller.signal,
 				});
 				if (!res.ok) {

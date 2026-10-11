@@ -85,7 +85,7 @@ export interface ChatStreamChunk {
 
 // ---- Model metadata ----
 
-export type SourceName = 'atomcode' | 'opencode' | 'cline';
+export type SourceName = 'atomcode' | 'opencode' | 'cline' | 'freegw';
 
 export interface ModelMeta {
 	/** Upstream model id (what the upstream expects in `body.model`). */
@@ -102,6 +102,9 @@ export interface ModelMeta {
 	/** Provider's own promo free fleet ("Try with limited usage at no cost") —
 	 *  pinned to the top of its platform section in the picker. */
 	promo?: boolean;
+	/** FreeGW virtual models: the ordered cross-source failover chain behind
+	 *  the id, shown in the picker tooltip ("atomcode/glm5.3-flash → …"). */
+	chain?: string[];
 }
 
 /** Picker-wide unique id: `<source>/<upstream-id>`. */
@@ -125,6 +128,10 @@ export interface PreparedRequest {
 	via: string;
 	/** The upstream body carries reserved gate tools the client never sent. */
 	stripGateTools?: boolean;
+	/** 调用方为本次请求补充的、仅在本次请求生效的附加字段（例如每次 prepare 都重算的会话 id）。
+	 *  stream 层不会把它报告给 Copilot，也不会转存给进度回调 —— 它只拼进本次请求体。
+	 */
+	requestExt?: Record<string, unknown>;
 }
 
 export interface SourceStatus {

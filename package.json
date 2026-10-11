@@ -1,8 +1,8 @@
 {
   "name": "anyfree2copilot",
   "displayName": "AnyFree for Copilot",
-  "description": "Free models from OpenCode Zen, Cline and AtomCode (AtomGit CodingPlan) in Copilot Chat, grouped by platform — agent mode, tool calling, MCP, all of it.",
-  "version": "0.2.5",
+  "description": "Free models from OpenCode Zen, Cline and AtomCode (AtomGit CodingPlan), plus a local FreeGW relay, in Copilot Chat, grouped by platform — agent mode, tool calling, MCP, all of it.",
+  "version": "0.2.8",
   "publisher": "lfapex",
   "license": "MIT",
   "repository": {
@@ -26,6 +26,8 @@
     "cline",
     "atomcode",
     "anyfree",
+    "freegw",
+    "relay",
     "free models",
     "byok",
     "language model",
@@ -50,6 +52,10 @@
       {
         "vendor": "cline",
         "displayName": "3. Cline (Free)"
+      },
+      {
+        "vendor": "freegw",
+        "displayName": "freegw"
       }
     ],
     "commands": [
@@ -155,6 +161,27 @@
           "default": false,
           "description": "Also expose the subscription-gated `clinePass` model bucket (403s without an active subscription)."
         },
+        "anyfree.sources.freegw.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Expose the local FreeGW gateway's virtual models (failover chains such as `main-coder`) in the freegw picker section. The section stays empty while the gateway is not running."
+        },
+        "anyfree.freegw.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8484",
+          "description": "FreeGW gateway base URL. A trailing /v1 is tolerated."
+        },
+        "anyfree.freegw.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Bearer API key expected by the gateway. Empty = send no auth header (correct when freegw's own config sets no apiKey)."
+        },
+        "anyfree.freegw.refreshSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 30,
+          "description": "How often the gateway's model catalog is re-read, in seconds."
+        },
         "anyfree.debug": {
           "type": "boolean",
           "default": false,
@@ -168,7 +195,7 @@
     "compile": "npm run clean && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "smoke": "node --test scripts/smoke.test.mjs",
-    "package": "node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package -o dist/anyfree2copilot-0.2.5.vsix"
+    "package": "node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package -o dist/anyfree2copilot-0.2.8.vsix"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

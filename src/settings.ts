@@ -26,11 +26,19 @@ export interface ClineSettings {
 	includeClinePass: boolean;
 }
 
+export interface FreeGWSettings {
+	enabled: boolean;
+	baseUrl: string;
+	apiKey: string;
+	refreshSeconds: number;
+}
+
 export interface Settings {
 	debug: boolean;
 	atomcode: AtomCodeSettings;
 	opencode: OpenCodeSettings;
 	cline: ClineSettings;
+	freegw: FreeGWSettings;
 }
 
 function str(section: vscode.WorkspaceConfiguration, key: string, fallback: string): string {
@@ -83,6 +91,13 @@ export function getSettings(): Settings {
 			clientVersion: str(root, 'cline.clientVersion', ''),
 			allowRefresh: bool(root, 'cline.allowRefresh', true),
 			includeClinePass: bool(root, 'cline.includeClinePass', false),
+		},
+		freegw: {
+			enabled: bool(sources, 'freegw.enabled', true),
+			// A trailing /v1 is tolerated so a pasted full endpoint keeps working.
+			baseUrl: str(root, 'freegw.baseUrl', 'http://127.0.0.1:8484').replace(/\/v1\/?$/, '').replace(/\/+$/, ''),
+			apiKey: str(root, 'freegw.apiKey', ''),
+			refreshSeconds: num(root, 'freegw.refreshSeconds', 120),
 		},
 	};
 }

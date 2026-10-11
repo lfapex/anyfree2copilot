@@ -15,8 +15,10 @@ const require = createRequire(import.meta.url);
 const atomcode = require('../out/sources/atomcode.js');
 const opencode = require('../out/sources/opencode.js');
 const cline = require('../out/sources/cline.js');
+const freegw = require('../out/sources/freegw.js');
 const { canonicalModelKey, Catalog, PLATFORMS } = require('../out/sources/index.js');
 const { SseParser, isDoneEvent } = require('../out/sse.js');
+const { truncateHistory, estimateMessageTokens } = require('../out/truncate.js');
 
 test('atomcode-signing-v1: golden vector (live-verified scheme, pinned)', () => {
 	const headers = atomcode.signAtomCodeRequest({
@@ -186,6 +188,69 @@ test('cline session id: stable per conversation, 32 hex', () => {
 	assert.notEqual(cline.deriveClineSession(body), cline.deriveClineSession({ model: 'other', messages: body.messages }));
 });
 
+test('freegw: display names prettified from upstream ids', () => {
+	assert.equal(freegw.prettifyModelName('cline-free/mimo-v2.6-flash'), 'MiMo V2.6 Flash');
+	assert.equal(freegw.prettifyModelName('atomcode/glm5.3-flash'), 'GLM5.3 Flash');
+	assert.equal(freegw.prettifyModelName('qwen/qwen3.8-27b:free'), 'Qwen3.8 27b');
+	assert.equal(freegw.prettifyModelName('nemotron-3.5-lightning-free'), 'Nemotron 3.5 Lightning');
+	assert.equal(freegw.prettifyModelName('main-coder'), 'Main Coder');
+	assert.equal(freegw.prettifyModelName('big-pickle'), 'Big Pickle');
+});
+
+test('freegw: prepare sends the exposed id to the local gateway', async () => {
+	const source = new freegw.FreeGWSource({ enabled: true, baseUrl: 'http://127.0.0.1:8484/v1/', apiKey: 'sk-test' });
+	const prepared = await source.prepare('atomcode/glm5.3-flash', { model: 'ignored', messages: [{ role: 'user', content: 'hi' }], stream: true });
+	assert.equal(prepared.url, 'http://127.0.0.1:8484/v1/chat/completions');
+	assert.equal(prepared.via, 'freegw@local');
+	assert.equal(prepared.forceStream, false);
+	const body = JSON.parse(prepared.body);
+	assert.equal(body.model, 'atomcode/glm5.3-flash');
+	assert.equal(prepared.headers.authorization, 'Bearer sk-test');
+
+	const noAuth = new freegw.FreeGWSource({ enabled: true, baseUrl: 'http://127.0.0.1:8484', apiKey: '' });
+	const openPrepared = await noAuth.prepare('x', { model: 'x', messages: [] });
+	assert.equal(openPrepared.headers.authorization, undefined);
+	assert.equal(openPrepared.url, 'http://127.0.0.1:8484/v1/chat/completions');
+});
+
+test('freegw: catalog keeps only virtual rows, chains carried through', async () => {
+	const rows = {
+		data: [
+			// Non-virtual rows belong to the platform sections — dropped here.
+			{ id: 'atomcode/glm5.3-flash', owned_by: 'atomcode', freegw: { source: 'atomcode', upstream_id: 'glm5.3-flash', context_window: 512000, supports_tools: true } },
+			{ id: 'big-pickle', owned_by: 'opencode', freegw: { source: 'opencode', upstream_id: 'big-pickle' } },
+			// Virtual rows: id + merged capabilities + the failover chain.
+			{ id: 'main-coder', owned_by: 'virtual', freegw: { source: 'virtual', context_window: 262144, max_output: 65536, supports_tools: true, image_input: true, reasoning: true, candidates: [{ source: 'atomcode', id: 'glm5.3-flash' }, { source: 'opencode', id: 'big-pickle' }] } },
+			{ id: 'fallback', owned_by: 'virtual', freegw: { source: 'virtual' } },
+			{ id: '', freegw: { source: 'virtual' } },
+			{ freegw: {} },
+		],
+	};
+	const fetchCalls = [];
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = async (url, init) => {
+		fetchCalls.push({ url, init });
+		return { ok: true, json: async () => rows };
+	};
+	try {
+		const source = new freegw.FreeGWSource({ enabled: true, baseUrl: 'http://127.0.0.1:8484', apiKey: '', refreshSeconds: 300 });
+		const models = await source.models();
+		assert.deepEqual(models.map((m) => m.id), ['main-coder', 'fallback']);
+		assert.equal(models[0].source, 'freegw');
+		assert.equal(models[0].name, 'Main Coder (FreeGW)');
+		assert.equal(models[0].contextWindow, 262144);
+		assert.equal(models[0].reasoning, true);
+		assert.deepEqual(models[0].chain, ['atomcode/glm5.3-flash', 'opencode/big-pickle']);
+		assert.equal(models[1].supportsTools, true); // default when metadata omits it
+		assert.equal(fetchCalls[0].url, 'http://127.0.0.1:8484/v1/models');
+		// Second call inside the refresh window is served from cache.
+		assert.equal((await source.models()).length, 2);
+		assert.equal(fetchCalls.length, 1);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
 test('SSE parser: comments, CRLF, multi-line data and [DONE]', () => {
 	const parser = new SseParser();
 	let events = [];
@@ -233,6 +298,7 @@ test('catalog: per-platform sections, canonical dedup and stable sort', () => {
 		atomcode: { enabled: true, home: '', hosts: [], clientVersion: '', models: [], allowRefresh: false },
 		opencode: { enabled: true, baseUrl: 'https://opencode.ai/zen', refreshSeconds: 300 },
 		cline: { enabled: true, baseUrl: '', home: '', clientType: '', clientVersion: '', allowRefresh: false, includeClinePass: false },
+		freegw: { enabled: true, baseUrl: 'http://127.0.0.1:8484', apiKey: '', refreshSeconds: 120 },
 	};
 	const catalog = new Catalog(settings);
 
@@ -249,8 +315,11 @@ test('catalog: per-platform sections, canonical dedup and stable sort', () => {
 	const clineRest = clineKeys.slice(1); // static roster carries exactly one promo entry
 	assert.deepEqual(clineRest, [...clineRest].sort((a, b) => a.localeCompare(b)), 'non-promo cline entries must be sorted');
 
-	// Platform section order: OpenCode, AtomCode, Cline.
-	assert.deepEqual(PLATFORMS.map((p) => p.source), ['opencode', 'atomcode', 'cline']);
+	// Platform section order: OpenCode, AtomCode, Cline, FreeGW.
+	assert.deepEqual(PLATFORMS.map((p) => p.source), ['opencode', 'atomcode', 'cline', 'freegw']);
+
+	// FreeGW has no static roster: cold start (gateway not yet asked) is empty.
+	assert.deepEqual(catalog.currentFor('freegw'), []);
 
 	// Within a platform, decorated variants dedup into one canonical entry.
 	const clineMimo = catalog.resolveFor('cline', 'mimo-v2.6-flash');
@@ -271,4 +340,107 @@ test('catalog: per-platform sections, canonical dedup and stable sort', () => {
 	assert.equal(catalog.resolveFor('opencode', 'qwen3.8-27b'), undefined);
 	assert.equal(catalog.resolveFor('opencode', 'does-not-exist'), undefined);
 	assert.ok(catalog.totalCount > 0);
+});
+
+test('estimateMessageTokens: text, tool calls and images all count', () => {
+	const plain = estimateMessageTokens({ role: 'user', content: 'aaaa' });
+	assert.equal(plain, 5); // 4 overhead + ceil(4/4)
+	const withTool = estimateMessageTokens({
+		role: 'assistant',
+		content: 'bbbb',
+		tool_calls: [{ id: 'c1', type: 'function', function: { name: 'f', arguments: '{}' } }],
+	});
+	assert.equal(withTool, 11); // 4 + 1 + (ceil((2+1+2)/4) + 4)
+	const withImage = estimateMessageTokens({
+		role: 'user',
+		content: [
+			{ type: 'text', text: 'aaaa' },
+			{ type: 'image_url', image_url: { url: 'data:image/png;base64,x' } },
+		],
+	});
+	assert.equal(withImage, 1105); // 4 + 1 + 1100
+});
+
+test('estimateMessageTokens: CJK text counts ~1 token per char', () => {
+	const cjk = estimateMessageTokens({ role: 'user', content: '你好世界，测试！' });
+	assert.equal(cjk, 12); // 4 overhead + 8 CJK chars incl. fullwidth punctuation
+	const mixed = estimateMessageTokens({ role: 'user', content: 'abc你好' });
+	assert.equal(mixed, 7); // 4 + 2 CJK + ceil(3/4)
+});
+
+test('truncateHistory: under budget returns the same array', () => {
+	const meta = { id: 'm', source: 'opencode', contextWindow: 100_000, maxOutput: 0 };
+	const out = [
+		{ role: 'user', content: 'hi' },
+		{ role: 'assistant', content: 'hello' },
+	];
+	assert.equal(truncateHistory(out, meta), out);
+});
+
+test('truncateHistory: drops oldest turns at user boundaries, tool groups whole', () => {
+	const meta = { id: 'm', source: 'opencode', contextWindow: 70, maxOutput: 0 };
+	const a = { role: 'user', content: 'aaaa' };
+	const b = { role: 'assistant', content: 'bbbb', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'f', arguments: '{}' } }] };
+	const c = { role: 'tool', content: 'cccc', tool_call_id: 'c1' };
+	const d = { role: 'assistant', content: 'dddd' };
+	const e = { role: 'user', content: 'e'.repeat(200) };
+	const f = { role: 'assistant', content: 'ffff' };
+	const g = { role: 'user', content: 'gggg' };
+	const result = truncateHistory([a, b, c, d, e, f, g], meta);
+	// 91 tokens total; budget 70. The first message (original task) is
+	// protected: keep a + the first user-boundary tail that fits with it —
+	// e,f,g = 64 tokens, 5 + 64 = 69 <= 70 — and the b..d tool group is
+	// dropped whole.
+	assert.deepEqual(result, [a, e, f, g]);
+	assert.equal(result[0].role, 'user');
+});
+
+test('truncateHistory: first message protected even when it forces a bigger cut', () => {
+	const meta = { id: 'm', source: 'opencode', contextWindow: 42, maxOutput: 0 };
+	const p = { role: 'user', content: 'a'.repeat(20) };
+	const q = { role: 'assistant', content: 'b'.repeat(20) };
+	const r = { role: 'user', content: 'c'.repeat(20) };
+	const s = { role: 'assistant', content: 'd'.repeat(20) };
+	const t = { role: 'user', content: 'e'.repeat(20) };
+	const v = { role: 'assistant', content: 'f'.repeat(20) };
+	// 54 tokens total, budget 42. Without protecting p the cut lands at r
+	// (tail 36 <= 42); reserving p's 9 tokens pushes it to t (9 + 18 = 27).
+	const result = truncateHistory([p, q, r, s, t, v], meta);
+	assert.deepEqual(result, [p, t, v]);
+});
+
+test('truncateHistory: falls back to first + current prompt when no boundary fits', () => {
+	const meta = { id: 'm', source: 'opencode', contextWindow: 30, maxOutput: 0 };
+	const first = { role: 'user', content: 'a'.repeat(40) };
+	const mid = { role: 'assistant', content: 'b'.repeat(40) };
+	const last = { role: 'user', content: 'c'.repeat(40) };
+	// 42 tokens total, budget 30; the only user boundary (index 0) is never a
+	// cut, so nothing between first and last can be dropped piecemeal.
+	// first + last = 28 <= 30 -> the task and the current prompt survive.
+	const result = truncateHistory([first, mid, last], meta);
+	assert.deepEqual(result, [first, last]);
+});
+
+test('truncateHistory: assistant lead is not protected across the cut', () => {
+	const meta = { id: 'm', source: 'opencode', contextWindow: 30, maxOutput: 0 };
+	const lead = { role: 'assistant', content: 'a'.repeat(20) };
+	const mid = { role: 'user', content: 'b'.repeat(20) };
+	const tail = { role: 'assistant', content: 'c'.repeat(20) };
+	const last = { role: 'user', content: 'd'.repeat(20) };
+	// 36 tokens total, budget 30; the tail from mid is 27 <= 30 and an
+	// assistant lead is not re-attached, so the plain cut applies.
+	const result = truncateHistory([lead, mid, tail, last], meta);
+	assert.deepEqual(result, [mid, tail, last]);
+});
+
+test('truncateHistory: keeps the current prompt even when alone over budget', () => {
+	const meta = { id: 'm', source: 'opencode', contextWindow: 1, maxOutput: 0 };
+	const out = [
+		{ role: 'user', content: 'first turn, very long'.repeat(50) },
+		{ role: 'assistant', content: 'answer' },
+		{ role: 'user', content: 'current prompt' },
+	];
+	const result = truncateHistory(out, meta);
+	assert.equal(result.length, 1);
+	assert.deepEqual(result[0], out[2]);
 });
